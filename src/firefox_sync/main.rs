@@ -1,13 +1,17 @@
 use chrono::prelude::*;
+use chrono::{DateTime, TimeZone, Utc};
 use reqwest;
+use rusqlite::{params, Connection, Result};
 use select::document;
 use std::collections::HashSet;
+use std::iter::FromIterator;
 use std::path::Path;
 use std::time::Duration;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
+
 mod Indexer {
 
     use chrono::prelude::*;
@@ -81,7 +85,17 @@ mod Indexer {
         reader.searcher()
     }
 
-    pub fn index_url(url: String) {
+    #[derive(Debug, Clone)]
+    pub struct UrlMeta {
+        pub title: Option<String>,
+        pub bookmarked: Option<bool>,
+        pub last_visit: Option<DateTime<Utc>>,
+        pub keywords: Option<Vec<String>>,
+        pub pinned: Option<i64>,
+        pub access_count: Option<i64>,
+    }
+
+    pub fn index_url(url: String, meta: UrlMeta) {
         let index = search_index();
         match index {
             Ok(index) => {
@@ -92,6 +106,7 @@ mod Indexer {
                     // let retrieved_doc = searcher.doc(doc_address).expect("doc");
                     //    println!("{}", index.schema().to_json(&retrieved_doc));
                 } else {
+                    dbg!(&url);
                     match get_url(&url) {
                         Ok(body) => {
                             let document = document::Document::from(body.as_str());
@@ -99,7 +114,7 @@ mod Indexer {
                             let title = match document.find(select::predicate::Name("title")).nth(0)
                             {
                                 Some(node) => node.text().to_string(),
-                                _ => "".to_string(),
+                                _ => meta.title.unwrap_or("".to_string()),
                             };
 
                             let body = match document.find(select::predicate::Name("body")).nth(0) {
@@ -145,24 +160,33 @@ mod Indexer {
                                     Facet::from(&format!("/{}", keyword)),
                                 );
                             }
+                            for keyword in meta.keywords.unwrap_or(vec![]) {
+                                doc.add_facet(
+                                    index.schema().get_field("keywords").expect("keywords"),
+                                    Facet::from(&format!("/{}", keyword)),
+                                );
+                            }
 
-                            let local: DateTime<Utc> = Utc::now();
                             doc.add_date(
                                 index.schema().get_field("added_at").expect("added_at"),
-                                &local,
+                                &Utc::now(),
                             );
 
+                            let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or(Utc::now());
                             doc.add_date(
                                 index.schema().get_field("added_at").expect("added_at"),
-                                &local,
+                                &last_visit,
                             );
-                            doc.add_i64(index.schema().get_field("pinned").expect("pinned"), 0);
+                            doc.add_i64(
+                                index.schema().get_field("pinned").expect("pinned"),
+                                meta.pinned.unwrap_or(0),
+                            );
                             doc.add_i64(
                                 index
                                     .schema()
                                     .get_field("accessed_count")
                                     .expect("accessed_count"),
-                                1,
+                                meta.access_count.unwrap_or(1),
                             );
                             doc.add_i64(
                                 index.schema().get_field("bookmarked").expect("bookmarked"),
@@ -200,27 +224,105 @@ mod Indexer {
         }
     }
 }
+use dirs;
+use glob::glob;
+use std::path::PathBuf;
+fn find_places_file() -> Option<PathBuf> {
+    //~/.mozilla/firefox/xdfjt9cu.default/places.sqlite
+    let home = dirs::home_dir().expect("no home dir");
+    let mut entries = glob(&format!(
+        "{}/.mozilla/firefox/*/places.sqlite",
+        home.display()
+    ))
+    .expect("Failed to read glob pattern");
+    let mut entries: Vec<PathBuf> = entries.filter_map(Result::ok).collect();
+    entries.sort_by(|a, b| {
+        b.metadata()
+            .unwrap()
+            .accessed()
+            .unwrap()
+            .partial_cmp(&a.metadata().unwrap().accessed().unwrap())
+            .unwrap()
+    });
+    entries.pop()
+}
+#[derive(Debug)]
+struct MozPlaces {
+    id: i32,
+    url: String,
+    title: Option<String>,
+    description: Option<String>,
+    visit_count: i64,
+    hidden: u8,
+    last_visit_date: Option<i64>,
+}
 
+#[derive(Debug)]
+struct MozBookmarks {
+    id: i32,
+    fk: Option<i32>,
+    title: Option<String>,
+}
 fn main() -> tantivy::Result<()> {
-    Indexer::index_url("https://docs.rs/chrono/0.4.15/chrono/".to_string());
     let index = Indexer::search_index();
-    match index {
-        Ok(index) => {
-            let searcher = Indexer::searcher(&index);
-
-            let query_parser = QueryParser::for_index(
-                &index,
-                vec![index.schema().get_field("content").expect("content field")],
+    let place = find_places_file();
+    match place {
+        Some(place_file) => {
+            let conn = Connection::open(place_file).expect("opening sqlite file");
+            let mut stmt = conn
+                .prepare("SELECT id, fk, title FROM moz_bookmarks")
+                .expect("book prep");
+            let bookmark_iter = stmt
+                .query_map(params![], |row| {
+                    Ok(MozBookmarks {
+                        id: row.get(0).unwrap(),
+                        fk: row.get(1).unwrap(),
+                        title: row.get(2).unwrap(),
+                    })
+                })
+                .expect("bookmark sql");
+            let bookmarks: HashSet<i32> = HashSet::from_iter(
+                bookmark_iter
+                    .filter(|b| b.as_ref().ok().unwrap().fk.is_some())
+                    .map(|b| b.as_ref().ok().unwrap().fk.unwrap()),
             );
-            let query = query_parser.parse_query("chrono")?;
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
-            for (_score, doc_address) in top_docs {
-                let retrieved_doc = searcher.doc(doc_address)?;
-                println!("{}", index.schema().to_json(&retrieved_doc));
+
+            let mut stmt = conn.prepare("SELECT id, url, title, description, visit_count, hidden, last_visit_date FROM moz_places").expect("place prep");
+            let places_iter = stmt
+                .query_map(params![], |row| {
+                    Ok(MozPlaces {
+                        id: row.get(0).unwrap(),
+                        url: row.get(1).unwrap(),
+                        title: row.get(2).unwrap(),
+                        description: row.get(3).unwrap(),
+                        visit_count: row.get(4).unwrap(),
+                        hidden: row.get(5).unwrap(),
+                        last_visit_date: row.get(6).unwrap(),
+                    })
+                })
+                .expect("place sql");
+            for places in places_iter {
+                let place = places.unwrap();
+                if place.visit_count > 0 && place.hidden == 0 {
+                    let meta = Indexer::UrlMeta {
+                        title: place.title,
+                        bookmarked: Some(bookmarks.contains(&place.id)),
+                        last_visit: place
+                            .last_visit_date
+                            .map_or(None, |num| Some(Utc.timestamp(num / 1000000, 0))),
+                        access_count: Some(place.visit_count),
+                        pinned: None,
+                        keywords: None,
+                    };
+
+                    Indexer::index_url(place.url, meta)
+                }
             }
         }
-        Err(_) => println!("count not access index"),
-    }
+        _ => {
+            println!("bad");
+        }
+    };
 
     Ok(())
 }
