@@ -1,6 +1,7 @@
 use chrono::prelude::*;
 use reqwest;
 use select::document;
+use std::collections::HashSet;
 use std::path::Path;
 use std::time::Duration;
 use tantivy::collector::TopDocs;
@@ -31,6 +32,7 @@ fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> 
     schema_builder.add_i64_field("accessed_count", STORED);
     schema_builder.add_facet_field("outlinks");
     schema_builder.add_facet_field("tags");
+    schema_builder.add_facet_field("keywords");
     schema_builder.add_date_field("added_at", STORED);
     schema_builder.add_date_field("last_accessed_at", STORED | INDEXED);
 
@@ -84,6 +86,33 @@ fn index_url(url: String) {
                         index.schema().get_field("domain").expect("domain"),
                         parsed.domain().unwrap_or(""),
                     );
+                    let found_urls = document
+                        .find(select::predicate::Name("a"))
+                        .filter_map(|n| n.attr("href"))
+                        .map(str::to_string)
+                        .collect::<HashSet<String>>();
+                    for url in found_urls {
+                        doc.add_facet(
+                            index.schema().get_field("outlinks").expect("outlinks"),
+                            Facet::from(&format!("/#{}", url.replacen("/", "?", 10000))),
+                        );
+                    }
+
+                    let keywords = document
+                        .find(select::predicate::Name("meta"))
+                        .filter(|node| node.attr("name").unwrap_or("") == "keywords")
+                        .filter_map(|n| n.attr("content"))
+                        .flat_map(|s| s.split(","))
+                        .map(str::to_string)
+                        .collect::<Vec<String>>();
+
+                    for keyword in keywords {
+                        doc.add_facet(
+                            index.schema().get_field("keywords").expect("keywords"),
+                            Facet::from(&format!("/{}", keyword)),
+                        );
+                    }
+
                     let local: DateTime<Utc> = Utc::now();
                     doc.add_date(
                         index.schema().get_field("added_at").expect("added_at"),
