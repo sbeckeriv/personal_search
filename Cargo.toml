@@ -13,7 +13,8 @@ reqwest = { version = "*", features = ["blocking"] }
 select = "*"
 tempfile = "*"
 chrono = "*"
-
+lazy_static = "*"
+toml = "*"
 
 dirs = { version = "*", optional = true }
 rusqlite = { version = "*", optional = true }

@@ -1,20 +1,27 @@
 use chrono::prelude::*;
 use chrono::{DateTime, TimeZone, Utc};
+use dirs;
+use glob::glob;
 use reqwest;
 use rusqlite::{params, Connection, Result};
 use select::document;
 use std::collections::HashSet;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::Read;
 use std::iter::FromIterator;
 use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
+use toml;
 
 mod Indexer {
-
     use chrono::prelude::*;
+    use lazy_static;
     use reqwest;
     use select::document;
     use std::collections::HashSet;
@@ -24,6 +31,7 @@ mod Indexer {
     use tantivy::query::QueryParser;
     use tantivy::schema::*;
     use tantivy::{Index, ReloadPolicy};
+
     pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
         let system_path = ".private_search";
         let index_path = Path::new(system_path);
@@ -95,114 +103,148 @@ mod Indexer {
         pub access_count: Option<i64>,
     }
 
-    pub fn index_url(url: String, meta: UrlMeta) {
-        let index = search_index();
-        match index {
-            Ok(index) => {
-                if let Some(doc_address) = find_url(&url, &index) {
-                    // update?
+    pub fn url_skip(url: &String) -> bool {
+        // lazy static this
 
-                    //let searcher = searcher(&index);
-                    // let retrieved_doc = searcher.doc(doc_address).expect("doc");
-                    //    println!("{}", index.schema().to_json(&retrieved_doc));
-                } else {
-                    dbg!(&url);
-                    match get_url(&url) {
-                        Ok(body) => {
-                            let document = document::Document::from(body.as_str());
-                            let mut doc = tantivy::Document::default();
-                            let title = match document.find(select::predicate::Name("title")).nth(0)
-                            {
-                                Some(node) => node.text().to_string(),
-                                _ => meta.title.unwrap_or("".to_string()),
-                            };
+        let parsed = reqwest::Url::parse(&url).expect("url pase");
 
-                            let body = match document.find(select::predicate::Name("body")).nth(0) {
-                                Some(node) => node.text(),
-                                _ => "".to_string(),
-                            };
-
-                            doc.add_text(index.schema().get_field("title").expect("title"), &title);
-                            doc.add_text(
-                                index.schema().get_field("content").expect("content"),
-                                &body.split_whitespace().collect::<Vec<_>>().join(" "),
-                            );
-                            doc.add_text(index.schema().get_field("url").expect("url"), &url);
-                            let parsed = reqwest::Url::parse(&url).expect("url pase");
-
-                            doc.add_text(
-                                index.schema().get_field("domain").expect("domain"),
-                                parsed.domain().unwrap_or(""),
-                            );
-                            let found_urls = document
-                                .find(select::predicate::Name("a"))
-                                .filter_map(|n| n.attr("href"))
-                                .map(str::to_string)
-                                .collect::<HashSet<String>>();
-                            for url in found_urls {
-                                doc.add_facet(
-                                    index.schema().get_field("outlinks").expect("outlinks"),
-                                    Facet::from(&format!("/#{}", url.replacen("/", "?", 10000))),
-                                );
-                            }
-
-                            let keywords = document
-                                .find(select::predicate::Name("meta"))
-                                .filter(|node| node.attr("name").unwrap_or("") == "keywords")
-                                .filter_map(|n| n.attr("content"))
-                                .flat_map(|s| s.split(","))
-                                .map(str::to_string)
-                                .collect::<Vec<String>>();
-
-                            for keyword in keywords {
-                                doc.add_facet(
-                                    index.schema().get_field("keywords").expect("keywords"),
-                                    Facet::from(&format!("/{}", keyword)),
-                                );
-                            }
-                            for keyword in meta.keywords.unwrap_or(vec![]) {
-                                doc.add_facet(
-                                    index.schema().get_field("keywords").expect("keywords"),
-                                    Facet::from(&format!("/{}", keyword)),
-                                );
-                            }
-
-                            doc.add_date(
-                                index.schema().get_field("added_at").expect("added_at"),
-                                &Utc::now(),
-                            );
-
-                            let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or(Utc::now());
-                            doc.add_date(
-                                index.schema().get_field("added_at").expect("added_at"),
-                                &last_visit,
-                            );
-                            doc.add_i64(
-                                index.schema().get_field("pinned").expect("pinned"),
-                                meta.pinned.unwrap_or(0),
-                            );
-                            doc.add_i64(
-                                index
-                                    .schema()
-                                    .get_field("accessed_count")
-                                    .expect("accessed_count"),
-                                meta.access_count.unwrap_or(1),
-                            );
-                            doc.add_i64(
-                                index.schema().get_field("bookmarked").expect("bookmarked"),
-                                0,
-                            );
-
-                            let mut index_writer = index.writer(50_000_000).expect("writer");
-                            index_writer.add_document(doc);
-                            index_writer.commit().expect("commit");
-                        }
-                        _ => {}
-                    }
-                };
-            }
-            _ => {}
+        let ignore_includes = vec![
+            "//127.0.0.1",
+            "//192.168.",
+            ".lvh.me",
+            "//0.0.0.0",
+            "//lvh.me",
+            "google.com/",
+        ];
+        let ignore_starts = vec!["moz-extension://"];
+        if !parsed.scheme().starts_with("http") {
+            true
+        } else if ignore_starts.iter().any(|s| url.starts_with(s)) {
+            true
+        } else if ignore_includes.iter().any(|s| url.contains(s)) {
+            true
+        } else {
+            false
         }
+    }
+
+    pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
+        let i;
+        let index = match index {
+            Some(index) => index,
+            None => {
+                i = search_index().unwrap();
+                &i
+            }
+        };
+        if url_skip(&url) {
+            println!("skip {}", url);
+        } else if let Some(doc_address) = find_url(&url, &index) {
+            println!("have {}", url);
+        // update?
+
+        //let searcher = searcher(&index);
+        // let retrieved_doc = searcher.doc(doc_address).expect("doc");
+        //    println!("{}", index.schema().to_json(&retrieved_doc));
+        } else {
+            dbg!(&url);
+            match get_url(&url) {
+                Ok(body) => {
+                    let document = document::Document::from(body.as_str());
+                    let mut doc = tantivy::Document::default();
+                    let title = match document.find(select::predicate::Name("title")).nth(0) {
+                        Some(node) => node.text().to_string(),
+                        _ => meta.title.unwrap_or("".to_string()),
+                    };
+
+                    let body = match document.find(select::predicate::Name("body")).nth(0) {
+                        Some(node) => node.text(),
+                        _ => "".to_string(),
+                    };
+
+                    doc.add_text(index.schema().get_field("title").expect("title"), &title);
+                    doc.add_text(
+                        index.schema().get_field("content").expect("content"),
+                        &body.split_whitespace().collect::<Vec<_>>().join(" "),
+                    );
+                    doc.add_text(index.schema().get_field("url").expect("url"), &url);
+                    let parsed = reqwest::Url::parse(&url).expect("url pase");
+
+                    doc.add_text(
+                        index.schema().get_field("domain").expect("domain"),
+                        parsed.domain().unwrap_or(""),
+                    );
+                    let found_urls = document
+                        .find(select::predicate::Name("a"))
+                        .filter_map(|n| n.attr("href"))
+                        .map(str::to_string)
+                        .collect::<HashSet<String>>();
+                    for url in found_urls {
+                        doc.add_facet(
+                            index.schema().get_field("outlinks").expect("outlinks"),
+                            Facet::from(&format!("/#{}", url.replacen("/", "?", 10000))),
+                        );
+                    }
+
+                    let keywords = document
+                        .find(select::predicate::Name("meta"))
+                        .filter(|node| node.attr("name").unwrap_or("") == "keywords")
+                        .filter_map(|n| n.attr("content"))
+                        .flat_map(|s| s.split(","))
+                        .map(str::to_string)
+                        .collect::<Vec<String>>();
+
+                    for keyword in keywords {
+                        doc.add_facet(
+                            index.schema().get_field("keywords").expect("keywords"),
+                            Facet::from(&format!("/{}", keyword)),
+                        );
+                    }
+                    for keyword in meta.keywords.unwrap_or(vec![]) {
+                        doc.add_facet(
+                            index.schema().get_field("keywords").expect("keywords"),
+                            Facet::from(&format!("/{}", keyword)),
+                        );
+                    }
+
+                    doc.add_date(
+                        index.schema().get_field("added_at").expect("added_at"),
+                        &Utc::now(),
+                    );
+
+                    let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or(Utc::now());
+                    doc.add_date(
+                        index.schema().get_field("added_at").expect("added_at"),
+                        &last_visit,
+                    );
+                    doc.add_i64(
+                        index.schema().get_field("pinned").expect("pinned"),
+                        meta.pinned.unwrap_or(0),
+                    );
+                    doc.add_i64(
+                        index
+                            .schema()
+                            .get_field("accessed_count")
+                            .expect("accessed_count"),
+                        meta.access_count.unwrap_or(1),
+                    );
+                    doc.add_i64(
+                        index.schema().get_field("bookmarked").expect("bookmarked"),
+                        0,
+                    );
+
+                    let mut index_writer = index.writer(50_000_000).expect("writer");
+                    index_writer.add_document(doc);
+                    index_writer.commit().expect("commit");
+                }
+
+                Err(e) => {
+                    dbg!(e);
+                    // add a down domain list to skip
+                    // error logging as well.
+                }
+            }
+        };
     }
 
     pub fn find_url(url: &String, index: &Index) -> std::option::Option<tantivy::DocAddress> {
@@ -224,9 +266,6 @@ mod Indexer {
         }
     }
 }
-use dirs;
-use glob::glob;
-use std::path::PathBuf;
 fn find_places_file() -> Option<PathBuf> {
     //~/.mozilla/firefox/xdfjt9cu.default/places.sqlite
     let home = dirs::home_dir().expect("no home dir");
@@ -263,9 +302,35 @@ struct MozBookmarks {
     fk: Option<i32>,
     title: Option<String>,
 }
+
+use std::fs::OpenOptions;
+use toml::Value;
 fn main() -> tantivy::Result<()> {
-    let index = Indexer::search_index();
+    let index = Indexer::search_index().unwrap();
     let place = find_places_file();
+    let path_name = format!(".firefox_sync_cache.toml");
+    let mut s = String::new();
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&path_name);
+    match file {
+        Err(why) => {
+            //println!("couldn't open {}: {}", path_name, why.to_string());
+        }
+        Ok(mut file) => match file.read_to_string(&mut s) {
+            Err(why) => panic!("couldn't read {}: {}", path_name, why),
+            Ok(_) => (),
+        },
+    };
+    let last_id = if !s.is_empty() {
+        let value = s.parse::<Value>().unwrap();
+        value["last_id"].as_integer()
+    } else {
+        None
+    };
+
     match place {
         Some(place_file) => {
             let conn = Connection::open(place_file).expect("opening sqlite file");
@@ -304,6 +369,22 @@ fn main() -> tantivy::Result<()> {
             for places in places_iter {
                 let place = places.unwrap();
                 if place.visit_count > 0 && place.hidden == 0 {
+                    if let Some(id_check) = last_id {
+                        if id_check > place.id {
+                            continue;
+                        }
+                    }
+                    if place.id % 10 == 0 {
+                        let mut file = OpenOptions::new()
+                            .truncate(true)
+                            .write(true)
+                            .create(true)
+                            .open(&path_name)
+                            .expect("cache file");
+
+                        file.write_all(format!("last_id = {}", place.id).as_bytes());
+                    }
+
                     let meta = Indexer::UrlMeta {
                         title: place.title,
                         bookmarked: Some(bookmarks.contains(&place.id)),
@@ -315,7 +396,7 @@ fn main() -> tantivy::Result<()> {
                         keywords: None,
                     };
 
-                    Indexer::index_url(place.url, meta)
+                    Indexer::index_url(place.url, meta, Some(&index))
                 }
             }
         }
