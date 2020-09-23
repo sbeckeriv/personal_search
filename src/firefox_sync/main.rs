@@ -1,17 +1,17 @@
-
-
-
-
-
-
+use chrono::prelude::*;
+use reqwest;
+use select::document;
+use std::collections::HashSet;
+use std::path::Path;
+use std::time::Duration;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-
-
+use tantivy::schema::*;
+use tantivy::{Index, ReloadPolicy};
 mod Indexer {
 
     use chrono::prelude::*;
-    
+    use reqwest;
     use select::document;
     use std::collections::HashSet;
     use std::path::Path;
@@ -50,7 +50,7 @@ mod Indexer {
 
         let schema = schema_builder.build();
         match directory {
-            Ok(dir) => Index::open_or_create(dir, schema),
+            Ok(dir) => Index::open_or_create(dir, schema.clone()),
             Err(_) => {
                 println!("dir not found");
                 Err(tantivy::TantivyError::SystemError(format!(
@@ -85,7 +85,7 @@ mod Indexer {
         let index = search_index();
         match index {
             Ok(index) => {
-                if let Some(_doc_address) = find_url(&url, &index) {
+                if let Some(doc_address) = find_url(&url, &index) {
                     // update?
 
                     //let searcher = searcher(&index);
@@ -96,13 +96,13 @@ mod Indexer {
                         Ok(body) => {
                             let document = document::Document::from(body.as_str());
                             let mut doc = tantivy::Document::default();
-                            let title = match document.find(select::predicate::Name("title")).next()
+                            let title = match document.find(select::predicate::Name("title")).nth(0)
                             {
-                                Some(node) => node.text(),
+                                Some(node) => node.text().to_string(),
                                 _ => "".to_string(),
                             };
 
-                            let body = match document.find(select::predicate::Name("body")).next() {
+                            let body = match document.find(select::predicate::Name("body")).nth(0) {
                                 Some(node) => node.text(),
                                 _ => "".to_string(),
                             };
@@ -135,7 +135,7 @@ mod Indexer {
                                 .find(select::predicate::Name("meta"))
                                 .filter(|node| node.attr("name").unwrap_or("") == "keywords")
                                 .filter_map(|n| n.attr("content"))
-                                .flat_map(|s| s.split(','))
+                                .flat_map(|s| s.split(","))
                                 .map(str::to_string)
                                 .collect::<Vec<String>>();
 
@@ -195,7 +195,7 @@ mod Indexer {
             .search(&query, &TopDocs::with_limit(1))
             .expect("search");
         match top_docs.iter().nth(0) {
-            Some((_, doc_address)) => Some(*doc_address),
+            Some((_, doc_address)) => Some(doc_address.clone()),
             _ => None,
         }
     }
