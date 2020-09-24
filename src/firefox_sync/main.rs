@@ -32,6 +32,32 @@ mod Indexer {
     use tantivy::schema::*;
     use tantivy::{Index, ReloadPolicy};
 
+    pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
+        let system_path = ".private_search_hash";
+        let index_path = Path::new(system_path);
+        // create it..
+        if !index_path.is_dir() {
+            println!("not found");
+        }
+
+        let directory = tantivy::directory::MmapDirectory::open(index_path);
+
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("domain", TEXT | STORED);
+        schema_builder.add_facet_field("hashes");
+
+        let schema = schema_builder.build();
+        match directory {
+            Ok(dir) => Index::open_or_create(dir, schema.clone()),
+            Err(_) => {
+                println!("dir not found");
+                Err(tantivy::TantivyError::SystemError(format!(
+                    "could not open index directory {}",
+                    system_path
+                )))
+            }
+        }
+    }
     pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
         let system_path = ".private_search";
         let index_path = Path::new(system_path);
@@ -287,7 +313,7 @@ fn find_places_file() -> Option<PathBuf> {
 }
 #[derive(Debug)]
 struct MozPlaces {
-    id: i32,
+    id: i64,
     url: String,
     title: Option<String>,
     description: Option<String>,
@@ -298,8 +324,8 @@ struct MozPlaces {
 
 #[derive(Debug)]
 struct MozBookmarks {
-    id: i32,
-    fk: Option<i32>,
+    id: i64,
+    fk: Option<i64>,
     title: Option<String>,
 }
 
@@ -346,7 +372,7 @@ fn main() -> tantivy::Result<()> {
                     })
                 })
                 .expect("bookmark sql");
-            let bookmarks: HashSet<i32> = HashSet::from_iter(
+            let bookmarks: HashSet<i64> = HashSet::from_iter(
                 bookmark_iter
                     .filter(|b| b.as_ref().ok().unwrap().fk.is_some())
                     .map(|b| b.as_ref().ok().unwrap().fk.unwrap()),
