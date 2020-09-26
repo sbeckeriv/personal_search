@@ -29,9 +29,11 @@ mod Indexer {
     use probabilistic_collections::similarity::{ShingleIterator, SimHash};
     use probabilistic_collections::SipHasherBuilder;
     use reqwest;
+    use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
     use select::document;
     use std::collections::HashSet;
     use std::fs;
+    use std::panic;
     use std::path::Path;
     use std::time::Duration;
     use tantivy::collector::TopDocs;
@@ -83,6 +85,7 @@ mod Indexer {
         schema_builder.add_text_field("content", TEXT);
         schema_builder.add_text_field("domain", TEXT | STORED);
         schema_builder.add_text_field("context", TEXT);
+        schema_builder.add_text_field("summary", TEXT);
         //schema_builder.add_text_field("preview_image", STORED);
         //schema_builder.add_text_field("preview_hash", STORED);
         //schema_builder.add_bytes_field("preview_image");
@@ -287,6 +290,24 @@ mod Indexer {
 
                     if !dup {
                         doc.add_text(index.schema().get_field("content").expect("content"), &body);
+
+                        let config = SummarizationConfig::default();
+
+                        let result = panic::catch_unwind(|| {
+                            let summarization_model =
+                                SummarizationModel::new(config).expect("summarization_model fail");
+                            let input = [body.as_str()];
+                            summarization_model.summarize(&input).join(" ")
+                        });
+
+                        if result.is_ok() {
+                            doc.add_text(
+                                index.schema().get_field("summary").expect("summary"),
+                                &result.unwrap(),
+                            );
+                        } else {
+                            println!("sum error");
+                        }
                     } else {
                         doc.add_i64(index.schema().get_field("duplicate").expect("duplicate"), 1);
                     }
