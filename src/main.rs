@@ -220,7 +220,7 @@ fn main() -> tantivy::Result<()> {
             let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
             for (_score, doc_address) in top_docs {
                 let retrieved_doc = searcher.doc(doc_address)?;
-                println!("{:?}", retrieved_doc);
+                println!("{}", index.schema().to_json(&retrieved_doc));
             }
         }
         Err(_) => println!("count not access index"),

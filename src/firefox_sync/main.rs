@@ -87,9 +87,6 @@ mod Indexer {
         schema_builder.add_text_field("context", TEXT);
         schema_builder.add_text_field("summary", TEXT | STORED);
         schema_builder.add_text_field("description", TEXT | STORED);
-        //schema_builder.add_text_field("preview_image", STORED);
-        //schema_builder.add_text_field("preview_hash", STORED);
-        //schema_builder.add_bytes_field("preview_image");
         schema_builder.add_i64_field("bookmarked", STORED | INDEXED);
         schema_builder.add_i64_field("duplicate", STORED | INDEXED);
         schema_builder.add_u64_field("content_hash", STORED | INDEXED);
@@ -263,6 +260,12 @@ mod Indexer {
                         _ => meta.title.unwrap_or("".to_string()),
                     };
 
+                    let description =
+                        match document.find(select::predicate::Name("description")).nth(0) {
+                            Some(node) => node.text().to_string(),
+                            _ => "".to_string(),
+                        };
+
                     let body = match document.find(select::predicate::Name("body")).nth(0) {
                         Some(node) => node.text().split_whitespace().collect::<Vec<_>>().join(" "),
                         _ => {
@@ -291,6 +294,13 @@ mod Indexer {
 
                     if !dup {
                         doc.add_text(index.schema().get_field("content").expect("content"), &body);
+                        doc.add_text(
+                            index
+                                .schema()
+                                .get_field("description")
+                                .expect("description"),
+                            &description,
+                        );
 
                         let config = SummarizationConfig::default();
 
