@@ -85,7 +85,8 @@ mod Indexer {
         schema_builder.add_text_field("content", TEXT);
         schema_builder.add_text_field("domain", TEXT | STORED);
         schema_builder.add_text_field("context", TEXT);
-        schema_builder.add_text_field("summary", TEXT);
+        schema_builder.add_text_field("summary", TEXT | STORED);
+        schema_builder.add_text_field("description", TEXT | STORED);
         //schema_builder.add_text_field("preview_image", STORED);
         //schema_builder.add_text_field("preview_hash", STORED);
         //schema_builder.add_bytes_field("preview_image");

@@ -1,27 +1,32 @@
+use std::env;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-
 mod Indexer {
-
     use chrono::prelude::*;
-
     use select::document;
     use std::collections::HashSet;
+    use std::fs;
     use std::path::Path;
     use std::time::Duration;
     use tantivy::collector::TopDocs;
     use tantivy::query::QueryParser;
     use tantivy::schema::*;
     use tantivy::{Index, ReloadPolicy};
-    pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
-        let system_path = ".private_search";
+    fn directory(
+        system_path: &str,
+    ) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError>
+    {
         let index_path = Path::new(system_path);
-        // create it..
         if !index_path.is_dir() {
-            println!("not found");
+            fs::create_dir(index_path).expect("could not make index dir");
         }
 
-        let directory = tantivy::directory::MmapDirectory::open(index_path);
+        tantivy::directory::MmapDirectory::open(index_path)
+    }
+
+    pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
+        let system_path = ".private_search";
+        let directory = directory(&system_path);
 
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("title", TEXT | STORED);
@@ -29,10 +34,14 @@ mod Indexer {
         schema_builder.add_text_field("content", TEXT);
         schema_builder.add_text_field("domain", TEXT | STORED);
         schema_builder.add_text_field("context", TEXT);
+        schema_builder.add_text_field("summary", TEXT | STORED);
+        schema_builder.add_text_field("description", TEXT | STORED);
         //schema_builder.add_text_field("preview_image", STORED);
         //schema_builder.add_text_field("preview_hash", STORED);
         //schema_builder.add_bytes_field("preview_image");
         schema_builder.add_i64_field("bookmarked", STORED | INDEXED);
+        schema_builder.add_i64_field("duplicate", STORED | INDEXED);
+        schema_builder.add_u64_field("content_hash", STORED | INDEXED);
         schema_builder.add_i64_field("pinned", STORED | INDEXED);
         schema_builder.add_i64_field("accessed_count", STORED);
         schema_builder.add_facet_field("outlinks");
@@ -43,7 +52,7 @@ mod Indexer {
 
         let schema = schema_builder.build();
         match directory {
-            Ok(dir) => Index::open_or_create(dir, schema),
+            Ok(dir) => Index::open_or_create(dir, schema.clone()),
             Err(_) => {
                 println!("dir not found");
                 Err(tantivy::TantivyError::SystemError(format!(
@@ -193,10 +202,9 @@ mod Indexer {
         }
     }
 }
-
 fn main() -> tantivy::Result<()> {
-    Indexer::index_url("https://docs.rs/chrono/0.4.15/chrono/".to_string());
     let index = Indexer::search_index();
+    let args: Vec<String> = env::args().collect();
     match index {
         Ok(index) => {
             let searcher = Indexer::searcher(&index);
@@ -205,24 +213,14 @@ fn main() -> tantivy::Result<()> {
                 &index,
                 vec![index.schema().get_field("content").expect("content field")],
             );
-            let query = query_parser.parse_query("chrono")?;
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(1))?;
+            let empty = "".to_string();
+            let x = args.get(1).unwrap_or(&empty);
+            dbg!(&x);
+            let query = query_parser.parse_query(x)?;
+            let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
             for (_score, doc_address) in top_docs {
                 let retrieved_doc = searcher.doc(doc_address)?;
-                println!(
-                    "{:?}",
-                    retrieved_doc
-                        .get_all(index.schema().get_field("outlinks").expect("f"))
-                        .iter()
-                        .map(|s| match s {
-                            tantivy::schema::Value::Facet(f) => f.to_path_string(),
-                            _ => {
-                                "".to_string()
-                            }
-                        })
-                        .collect::<Vec<String>>()
-                        .join(" ")
-                );
+                println!("{:?}", retrieved_doc);
             }
         }
         Err(_) => println!("count not access index"),
