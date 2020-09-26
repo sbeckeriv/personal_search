@@ -1,17 +1,10 @@
-
-
-
-
-
-
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-
 
 mod Indexer {
 
     use chrono::prelude::*;
-    
+
     use select::document;
     use std::collections::HashSet;
     use std::path::Path;
@@ -213,10 +206,23 @@ fn main() -> tantivy::Result<()> {
                 vec![index.schema().get_field("content").expect("content field")],
             );
             let query = query_parser.parse_query("chrono")?;
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+            let top_docs = searcher.search(&query, &TopDocs::with_limit(1))?;
             for (_score, doc_address) in top_docs {
                 let retrieved_doc = searcher.doc(doc_address)?;
-                println!("{}", index.schema().to_json(&retrieved_doc));
+                println!(
+                    "{:?}",
+                    retrieved_doc
+                        .get_all(index.schema().get_field("outlinks").expect("f"))
+                        .iter()
+                        .map(|s| match s {
+                            tantivy::schema::Value::Facet(f) => f.to_path_string(),
+                            _ => {
+                                "".to_string()
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                        .join(" ")
+                );
             }
         }
         Err(_) => println!("count not access index"),

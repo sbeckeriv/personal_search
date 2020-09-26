@@ -5,7 +5,7 @@ authors = ["becker <github@deathbyescalator.com>"]
 edition = "2018"
 
 [features]
-firefox_sync = ["rusqlite", "glob", "dirs", "probabilistic-collections"]
+firefox_sync = ["rusqlite", "glob", "dirs", "probabilistic-collections", "triple_accel", "md5"]
 
 [dependencies]
 tantivy = "*"
@@ -19,8 +19,9 @@ toml = "*"
 dirs = { version = "*", optional = true }
 rusqlite = { version = "*", optional = true }
 glob = { version = "*", optional = true }
-probabilistic-collections = { version = "*", optional = true }
-
+probabilistic-collections = { version = "*", optional = true, features = ["serde"] }
+triple_accel =  { version = "*", optional = true }
+md5 =  { version = "*", optional = true }
 
 [[bin]]
 name = "firefox_sync"

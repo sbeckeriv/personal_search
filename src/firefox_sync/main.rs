@@ -1,11 +1,15 @@
+extern crate probabilistic_collections;
 use chrono::prelude::*;
 use chrono::{DateTime, TimeZone, Utc};
 use dirs;
 use glob::glob;
+use probabilistic_collections::similarity::{ShingleIterator, SimHash};
+use probabilistic_collections::SipHasherBuilder;
 use reqwest;
 use rusqlite::{params, Connection, Result};
 use select::document;
 use std::collections::HashSet;
+use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
@@ -22,25 +26,36 @@ use toml;
 mod Indexer {
     use chrono::prelude::*;
     use lazy_static;
+    use probabilistic_collections::similarity::{ShingleIterator, SimHash};
+    use probabilistic_collections::SipHasherBuilder;
     use reqwest;
     use select::document;
     use std::collections::HashSet;
+    use std::fs;
     use std::path::Path;
     use std::time::Duration;
     use tantivy::collector::TopDocs;
     use tantivy::query::QueryParser;
     use tantivy::schema::*;
-    use tantivy::{Index, ReloadPolicy};
-
-    pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
-        let system_path = ".private_search_hash";
+    use tantivy::{doc, Index, ReloadPolicy};
+    use triple_accel::hamming;
+    fn directory(
+        system_path: &str,
+    ) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError>
+    {
         let index_path = Path::new(system_path);
-        // create it..
         if !index_path.is_dir() {
-            println!("not found");
+            fs::create_dir(index_path).expect("could not make index dir");
         }
 
-        let directory = tantivy::directory::MmapDirectory::open(index_path);
+        tantivy::directory::MmapDirectory::open(index_path)
+    }
+
+    pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
+        // dont keep its own index? we are writing the domain and duplicate urls to prevent them
+        // from reloading. just use that?
+        let system_path = ".private_search_hashes";
+        let directory = directory(&system_path);
 
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("domain", TEXT | STORED);
@@ -60,13 +75,7 @@ mod Indexer {
     }
     pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
         let system_path = ".private_search";
-        let index_path = Path::new(system_path);
-        // create it..
-        if !index_path.is_dir() {
-            println!("not found");
-        }
-
-        let directory = tantivy::directory::MmapDirectory::open(index_path);
+        let directory = directory(&system_path);
 
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("title", TEXT | STORED);
@@ -78,6 +87,8 @@ mod Indexer {
         //schema_builder.add_text_field("preview_hash", STORED);
         //schema_builder.add_bytes_field("preview_image");
         schema_builder.add_i64_field("bookmarked", STORED | INDEXED);
+        schema_builder.add_i64_field("duplicate", STORED | INDEXED);
+        schema_builder.add_u64_field("content_hash", STORED | INDEXED);
         schema_builder.add_i64_field("pinned", STORED | INDEXED);
         schema_builder.add_i64_field("accessed_count", STORED);
         schema_builder.add_facet_field("outlinks");
@@ -153,6 +164,71 @@ mod Indexer {
             false
         }
     }
+    fn domain_hash(domain: &str) -> String {
+        let digest = md5::compute(domain.as_bytes());
+        format!("{:x}", digest)
+    }
+    pub fn add_hash(domain: &str, hash: u64) {
+        let index = hash_index().expect("hash index");
+        let searcher = searcher(&index);
+        let mut index_writer = index.writer(50_000_000).expect("writer");
+        let query_parser = QueryParser::for_index(
+            &index,
+            vec![index.schema().get_field("domain").expect("domain field")],
+        );
+        let domain_hash = domain_hash(&domain);
+        let query = query_parser
+            .parse_query(&format!("\"{}\"", &domain_hash))
+            .expect("query parse for domain match");
+
+        let top_docs = searcher
+            .search(&query, &TopDocs::with_limit(1))
+            .expect("search");
+        dbg!(domain);
+
+        let new_hash = format!("/{}", hash);
+        let mut doc = if let Some(result) = top_docs.first() {
+            let doc = searcher.doc(result.1).expect("doc");
+            // dont dup the facet
+            for s in doc
+                .get_all(index.schema().get_field("hashes").expect("f"))
+                .iter()
+            {
+                match s {
+                    tantivy::schema::Value::Facet(facet) => {
+                        if facet.to_path_string() == new_hash {
+                            dbg!("already have the hash");
+                            return;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let frankenstein_isbn = Term::from_field_text(
+                index.schema().get_field("domain").expect("domain field"),
+                &domain_hash,
+            );
+            index_writer.delete_term(frankenstein_isbn.clone());
+            doc
+        } else {
+            let mut doc = tantivy::Document::default();
+            doc.add_text(
+                index.schema().get_field("domain").expect("domain"),
+                &domain_hash,
+            );
+
+            doc
+        };
+
+        doc.add_facet(
+            index.schema().get_field("hashes").expect("hash"),
+            Facet::from(&new_hash),
+        );
+        dbg!(&doc);
+
+        index_writer.add_document(doc);
+        index_writer.commit().expect("commit");
+    }
 
     pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
         let i;
@@ -184,17 +260,37 @@ mod Indexer {
                     };
 
                     let body = match document.find(select::predicate::Name("body")).nth(0) {
-                        Some(node) => node.text(),
-                        _ => "".to_string(),
+                        Some(node) => node.text().split_whitespace().collect::<Vec<_>>().join(" "),
+                        _ => {
+                            // nothing to index
+                            return;
+                        }
                     };
 
-                    doc.add_text(index.schema().get_field("title").expect("title"), &title);
-                    doc.add_text(
-                        index.schema().get_field("content").expect("content"),
-                        &body.split_whitespace().collect::<Vec<_>>().join(" "),
-                    );
-                    doc.add_text(index.schema().get_field("url").expect("url"), &url);
                     let parsed = reqwest::Url::parse(&url).expect("url pase");
+
+                    let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
+                    //dbg!(&body);
+                    let content_hash =
+                        sim_hash.get_sim_hash(ShingleIterator::new(2, body.split(' ').collect()));
+                    let dup = duplicate(&parsed.domain().unwrap().to_string(), &content_hash);
+                    dbg!(&dup);
+
+                    doc.add_u64(
+                        index
+                            .schema()
+                            .get_field("content_hash")
+                            .expect("content_hash"),
+                        content_hash,
+                    );
+                    doc.add_text(index.schema().get_field("title").expect("title"), &title);
+
+                    if !dup {
+                        doc.add_text(index.schema().get_field("content").expect("content"), &body);
+                    } else {
+                        doc.add_i64(index.schema().get_field("duplicate").expect("duplicate"), 1);
+                    }
+                    doc.add_text(index.schema().get_field("url").expect("url"), &url);
 
                     doc.add_text(
                         index.schema().get_field("domain").expect("domain"),
@@ -259,6 +355,7 @@ mod Indexer {
                         0,
                     );
 
+                    add_hash(&parsed.domain().expect(("domian")), content_hash);
                     let mut index_writer = index.writer(50_000_000).expect("writer");
                     index_writer.add_document(doc);
                     index_writer.commit().expect("commit");
@@ -271,6 +368,58 @@ mod Indexer {
                 }
             }
         };
+    }
+
+    pub fn duplicate(domain: &String, content_hash: &u64) -> bool {
+        let index = hash_index().expect("hash index");
+        let searcher = searcher(&index);
+        let query_parser = QueryParser::for_index(
+            &index,
+            vec![index.schema().get_field("domain").expect("domain field")],
+        );
+
+        let domain_hash = domain_hash(&domain);
+        let query = query_parser
+            .parse_query(&format!("\"!{}\"", domain_hash))
+            .expect("query parse for domain match");
+
+        let top_docs = searcher
+            .search(&query, &TopDocs::with_limit(1))
+            .expect("search");
+        dbg!(domain);
+        dbg!(domain_hash);
+        let content_hash_bytes = content_hash.to_le_bytes();
+        dbg!(&content_hash);
+        for result in top_docs {
+            for s in searcher
+                .doc(result.1)
+                .expect("doc")
+                .get_all(index.schema().get_field("hashes").expect("f"))
+                .iter()
+            {
+                match s {
+                    tantivy::schema::Value::Facet(facet) => {
+                        dbg!(&facet);
+                        let hash_number = facet
+                            .to_path()
+                            .remove(0)
+                            .parse::<i64>()
+                            .unwrap_or(0)
+                            .to_le_bytes();
+
+                        //dbg!(&hash_number);
+                        //dbg!(&content_hash_bytes);
+                        let ham = hamming(&hash_number, &content_hash_bytes);
+                        dbg!(&ham);
+                        if ham < 4 {
+                            return true;
+                        }
+                    }
+                    _ => {}
+                };
+            }
+        }
+        false
     }
 
     pub fn find_url(url: &String, index: &Index) -> std::option::Option<tantivy::DocAddress> {
@@ -286,12 +435,16 @@ mod Indexer {
         let top_docs = searcher
             .search(&query, &TopDocs::with_limit(1))
             .expect("search");
+        // need to load the doc to get the real url to compare vs input.
+        // roots like www.google.com/ will show up for
+        // www.google.com/?q=some_search
         match top_docs.iter().nth(0) {
             Some((_, doc_address)) => Some(doc_address.clone()),
             _ => None,
         }
     }
 }
+
 fn find_places_file() -> Option<PathBuf> {
     //~/.mozilla/firefox/xdfjt9cu.default/places.sqlite
     let home = dirs::home_dir().expect("no home dir");
@@ -332,8 +485,14 @@ struct MozBookmarks {
 use std::fs::OpenOptions;
 use toml::Value;
 fn main() -> tantivy::Result<()> {
+    let args: Vec<String> = env::args().collect();
+    println!("{:?}", args);
+    let arg_path = args.get(1);
     let index = Indexer::search_index().unwrap();
-    let place = find_places_file();
+    let place = match arg_path {
+        Some(arg_path) => Some(PathBuf::from(arg_path)),
+        None => find_places_file(),
+    };
     let path_name = format!(".firefox_sync_cache.toml");
     let mut s = String::new();
     let file = OpenOptions::new()
@@ -359,10 +518,12 @@ fn main() -> tantivy::Result<()> {
 
     match place {
         Some(place_file) => {
+            dbg!(&place_file);
             let conn = Connection::open(place_file).expect("opening sqlite file");
             let mut stmt = conn
                 .prepare("SELECT id, fk, title FROM moz_bookmarks")
                 .expect("book prep");
+
             let bookmark_iter = stmt
                 .query_map(params![], |row| {
                     Ok(MozBookmarks {
@@ -381,6 +542,7 @@ fn main() -> tantivy::Result<()> {
             let mut stmt = conn.prepare("SELECT id, url, title, description, visit_count, hidden, last_visit_date FROM moz_places").expect("place prep");
             let places_iter = stmt
                 .query_map(params![], |row| {
+                    // dont use wrapper object. we could call it right here.
                     Ok(MozPlaces {
                         id: row.get(0).unwrap(),
                         url: row.get(1).unwrap(),
@@ -421,7 +583,6 @@ fn main() -> tantivy::Result<()> {
                         pinned: None,
                         keywords: None,
                     };
-
                     Indexer::index_url(place.url, meta, Some(&index))
                 }
             }
