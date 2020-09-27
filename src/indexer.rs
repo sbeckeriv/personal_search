@@ -292,7 +292,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     if result.is_ok() {
                         doc.add_text(
                             index.schema().get_field("summary").expect("summary"),
-                            &result.unwrap(),
+                            &result.unwrap().replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "").trim(),
                         );
                     } else {
                         println!("sum error");
