@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-
-
 use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::TopDocs;
@@ -36,11 +34,7 @@ fn search(query: String, index: tantivy::Index) {
         .map(|(field, _)| field)
         .collect();
 
-    let query_parser = QueryParser::new(
-        index.schema(),
-        default_fields,
-        index.tokenizers().clone(),
-    );
+    let query_parser = QueryParser::new(index.schema(), default_fields, index.tokenizers().clone());
 
     let query = query_parser.parse_query(&query).expect("query parse");
     let top_docs = searcher
@@ -56,17 +50,23 @@ fn search(query: String, index: tantivy::Index) {
                 .push(f.value())
         }
 
+        let m: HashMap<_, _> = retrieved_doc
+            .get_sorted_field_values()
+            .into_iter()
+            .map(|a| (schema.get_field_name(a.0), a.1))
+            .collect();
+
         let title = m
             .get("title")
-            .and_then(|r| r.first().unwrap().text())
+            .and_then(|r| r.first().unwrap().value().text())
             .unwrap_or("");
         let url = m
             .get("url")
-            .and_then(|r| r.first().unwrap().text())
+            .and_then(|r| r.first().unwrap().value().text())
             .unwrap_or("");
         let summary = m
             .get("summary")
-            .and_then(|r| r.first().unwrap().text())
+            .and_then(|r| r.first().unwrap().value().text())
             .unwrap_or("");
         println!(
             "{score}: {title} - {url}\n{summary}\n",

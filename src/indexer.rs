@@ -132,7 +132,9 @@ pub fn url_skip(url: &String) -> bool {
         true
     } else if ignore_starts.iter().any(|s| url.starts_with(s)) {
         true
-    } else { ignore_includes.iter().any(|s| url.contains(s)) }
+    } else {
+        ignore_includes.iter().any(|s| url.contains(s))
+    }
 }
 fn domain_hash(domain: &str) -> String {
     let digest = md5::compute(domain.as_bytes());
@@ -209,6 +211,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
             &i
         }
     };
+
     if url_skip(&url) {
         println!("skip {}", url);
     } else if let Some(_doc_address) = find_url(&url, &index) {
@@ -229,14 +232,16 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     _ => meta.title.unwrap_or("".to_string()),
                 };
 
-                let description = match document
+                let meta_description = document
                     .find(select::predicate::Name("meta"))
-                    .into_selection()
-                    .filter(select::predicate::Attr("name", "description"))
-                    .iter().next()
-                {
-                    Some(node) => node.text(),
-                    _ => "".to_string(),
+                    .filter(|node| node.attr("name").unwrap_or("") == "description")
+                    .filter_map(|n| n.attr("content"))
+                    .map(str::to_string)
+                    .collect::<Vec<String>>();
+                let empty = "".to_string();
+                let description = match meta_description.first() {
+                    Some(node) => node,
+                    _ => &empty,
                 };
 
                 let body = match document.find(select::predicate::Name("body")).next() {
@@ -250,11 +255,9 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                 let parsed = reqwest::Url::parse(&url).expect("url pase");
 
                 let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
-                //dbg!(&body);
                 let content_hash =
                     sim_hash.get_sim_hash(ShingleIterator::new(2, body.split(' ').collect()));
                 let dup = duplicate(&parsed.domain().unwrap().to_string(), &content_hash);
-                dbg!(&dup);
 
                 doc.add_u64(
                     index
@@ -360,7 +363,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     0,
                 );
 
-                add_hash(&parsed.domain().expect("domian"), content_hash);
+                add_hash(&parsed.domain().expect("domain"), content_hash);
                 let mut index_writer = index.writer(50_000_000).expect("writer");
                 index_writer.add_document(doc);
                 index_writer.commit().expect("commit");
