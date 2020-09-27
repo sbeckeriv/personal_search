@@ -1,226 +1,96 @@
+use std::collections::HashMap;
 use std::env;
+use std::path::Path;
+use std::path::PathBuf;
+use structopt::StructOpt;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-mod Indexer {
-    use chrono::prelude::*;
-    use select::document;
-    use std::collections::HashSet;
-    use std::fs;
-    use std::path::Path;
-    use std::time::Duration;
-    use tantivy::collector::TopDocs;
-    use tantivy::query::QueryParser;
-    use tantivy::schema::*;
-    use tantivy::{Index, ReloadPolicy};
-    fn directory(
-        system_path: &str,
-    ) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError>
-    {
-        let index_path = Path::new(system_path);
-        if !index_path.is_dir() {
-            fs::create_dir(index_path).expect("could not make index dir");
-        }
+mod indexer;
 
-        tantivy::directory::MmapDirectory::open(index_path)
-    }
+#[derive(StructOpt, Debug)]
+pub struct Opt {
+    #[structopt(long = "query", name = "query")]
+    query: Option<String>,
+    #[structopt(long = "import_url")]
+    import_url: Option<String>,
+    #[structopt(short = "s", long = "silent")]
+    silent: bool,
+    #[structopt(short = "v", long = "verbose")]
+    verbose: bool,
+    #[structopt(long = "search_folder")]
+    #[structopt(parse(from_os_str))]
+    search_folder_path: Option<PathBuf>,
+}
 
-    pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
-        let system_path = ".private_search";
-        let directory = directory(&system_path);
-
-        let mut schema_builder = Schema::builder();
-        schema_builder.add_text_field("title", TEXT | STORED);
-        schema_builder.add_text_field("url", TEXT | STORED);
-        schema_builder.add_text_field("content", TEXT);
-        schema_builder.add_text_field("domain", TEXT | STORED);
-        schema_builder.add_text_field("context", TEXT);
-        schema_builder.add_text_field("summary", TEXT | STORED);
-        schema_builder.add_text_field("description", TEXT | STORED);
-        //schema_builder.add_text_field("preview_image", STORED);
-        //schema_builder.add_text_field("preview_hash", STORED);
-        //schema_builder.add_bytes_field("preview_image");
-        schema_builder.add_i64_field("bookmarked", STORED | INDEXED);
-        schema_builder.add_i64_field("duplicate", STORED | INDEXED);
-        schema_builder.add_u64_field("content_hash", STORED | INDEXED);
-        schema_builder.add_i64_field("pinned", STORED | INDEXED);
-        schema_builder.add_i64_field("accessed_count", STORED);
-        schema_builder.add_facet_field("outlinks");
-        schema_builder.add_facet_field("tags");
-        schema_builder.add_facet_field("keywords");
-        schema_builder.add_date_field("added_at", STORED);
-        schema_builder.add_date_field("last_accessed_at", STORED | INDEXED);
-
-        let schema = schema_builder.build();
-        match directory {
-            Ok(dir) => Index::open_or_create(dir, schema.clone()),
-            Err(_) => {
-                println!("dir not found");
-                Err(tantivy::TantivyError::SystemError(format!(
-                    "could not open index directory {}",
-                    system_path
-                )))
+fn search(query: String, index: tantivy::Index) {
+    let searcher = indexer::searcher(&index);
+    let default_fields: Vec<tantivy::schema::Field> = index
+        .schema()
+        .fields()
+        .filter(|&(_, ref field_entry)| match *field_entry.field_type() {
+            tantivy::schema::FieldType::Str(ref text_field_options) => {
+                text_field_options.get_indexing_options().is_some()
             }
+            _ => false,
+        })
+        .map(|(field, _)| field)
+        .collect();
+
+    let query_parser = QueryParser::new(
+        index.schema().clone(),
+        default_fields,
+        index.tokenizers().clone(),
+    );
+
+    let query = query_parser.parse_query(&query).expect("query parse");
+    let top_docs = searcher
+        .search(&query, &TopDocs::with_limit(10))
+        .expect("serach");
+    let schema = index.schema();
+    for (score, doc_address) in top_docs {
+        let retrieved_doc = searcher.doc(doc_address).expect("doc");
+        let mut m = HashMap::new();
+        for f in retrieved_doc.field_values().iter() {
+            m.entry(schema.get_field_name(f.field()))
+                .or_insert_with(Vec::new)
+                .push(f.value())
         }
-    }
 
-    pub fn get_url(url: &String) -> Result<String, reqwest::Error> {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(10))
-            .build()?;
-        let res = client.get(url).send()?;
-        let body = res.text()?;
-
-        Ok(body)
-    }
-
-    pub fn searcher(index: &Index) -> tantivy::LeasedItem<tantivy::Searcher> {
-        let reader = index
-            .reader_builder()
-            .reload_policy(ReloadPolicy::Manual)
-            .try_into()
-            .expect("reader");
-
-        reader.searcher()
-    }
-
-    pub fn index_url(url: String) {
-        let index = search_index();
-        match index {
-            Ok(index) => {
-                if let Some(_doc_address) = find_url(&url, &index) {
-                    // update?
-
-                    //let searcher = searcher(&index);
-                    // let retrieved_doc = searcher.doc(doc_address).expect("doc");
-                    //    println!("{}", index.schema().to_json(&retrieved_doc));
-                } else {
-                    match get_url(&url) {
-                        Ok(body) => {
-                            let document = document::Document::from(body.as_str());
-                            let mut doc = tantivy::Document::default();
-                            let title = match document.find(select::predicate::Name("title")).next()
-                            {
-                                Some(node) => node.text(),
-                                _ => "".to_string(),
-                            };
-
-                            let body = match document.find(select::predicate::Name("body")).next() {
-                                Some(node) => node.text(),
-                                _ => "".to_string(),
-                            };
-
-                            doc.add_text(index.schema().get_field("title").expect("title"), &title);
-                            doc.add_text(
-                                index.schema().get_field("content").expect("content"),
-                                &body.split_whitespace().collect::<Vec<_>>().join(" "),
-                            );
-                            doc.add_text(index.schema().get_field("url").expect("url"), &url);
-                            let parsed = reqwest::Url::parse(&url).expect("url pase");
-
-                            doc.add_text(
-                                index.schema().get_field("domain").expect("domain"),
-                                parsed.domain().unwrap_or(""),
-                            );
-                            let found_urls = document
-                                .find(select::predicate::Name("a"))
-                                .filter_map(|n| n.attr("href"))
-                                .map(str::to_string)
-                                .collect::<HashSet<String>>();
-                            for url in found_urls {
-                                doc.add_facet(
-                                    index.schema().get_field("outlinks").expect("outlinks"),
-                                    Facet::from(&format!("/#{}", url.replacen("/", "?", 10000))),
-                                );
-                            }
-
-                            let keywords = document
-                                .find(select::predicate::Name("meta"))
-                                .filter(|node| node.attr("name").unwrap_or("") == "keywords")
-                                .filter_map(|n| n.attr("content"))
-                                .flat_map(|s| s.split(','))
-                                .map(str::to_string)
-                                .collect::<Vec<String>>();
-
-                            for keyword in keywords {
-                                doc.add_facet(
-                                    index.schema().get_field("keywords").expect("keywords"),
-                                    Facet::from(&format!("/{}", keyword)),
-                                );
-                            }
-
-                            let local: DateTime<Utc> = Utc::now();
-                            doc.add_date(
-                                index.schema().get_field("added_at").expect("added_at"),
-                                &local,
-                            );
-
-                            doc.add_date(
-                                index.schema().get_field("added_at").expect("added_at"),
-                                &local,
-                            );
-                            doc.add_i64(index.schema().get_field("pinned").expect("pinned"), 0);
-                            doc.add_i64(
-                                index
-                                    .schema()
-                                    .get_field("accessed_count")
-                                    .expect("accessed_count"),
-                                1,
-                            );
-                            doc.add_i64(
-                                index.schema().get_field("bookmarked").expect("bookmarked"),
-                                0,
-                            );
-
-                            let mut index_writer = index.writer(50_000_000).expect("writer");
-                            index_writer.add_document(doc);
-                            index_writer.commit().expect("commit");
-                        }
-                        _ => {}
-                    }
-                };
-            }
-            _ => {}
-        }
-    }
-
-    pub fn find_url(url: &String, index: &Index) -> std::option::Option<tantivy::DocAddress> {
-        let searcher = searcher(&index);
-        let query_parser = QueryParser::for_index(
-            &index,
-            vec![index.schema().get_field("url").expect("url field")],
+        let title = m
+            .get("title")
+            .and_then(|r| r.first().unwrap().text())
+            .unwrap_or("");
+        let url = m
+            .get("url")
+            .and_then(|r| r.first().unwrap().text())
+            .unwrap_or("");
+        let summary = m
+            .get("summary")
+            .and_then(|r| r.first().unwrap().text())
+            .unwrap_or("");
+        println!(
+            "{score}: {title} - {url}\n{summary}\n",
+            score = score,
+            title = title,
+            url = url,
+            summary = summary,
         );
-
-        let query = query_parser
-            .parse_query(&format!("\"{}\"", url))
-            .expect("query parse for url match");
-        let top_docs = searcher
-            .search(&query, &TopDocs::with_limit(1))
-            .expect("search");
-        match top_docs.iter().nth(0) {
-            Some((_, doc_address)) => Some(*doc_address),
-            _ => None,
-        }
+        //let json = index.schema().to_json(&retrieved_doc);
+        //println!("{}:\n{}", score, json);
     }
 }
+
 fn main() -> tantivy::Result<()> {
-    let index = Indexer::search_index();
-    let args: Vec<String> = env::args().collect();
+    let index = indexer::search_index();
+
+    let opt = Opt::from_args();
+
     match index {
         Ok(index) => {
-            let searcher = Indexer::searcher(&index);
-
-            let query_parser = QueryParser::for_index(
-                &index,
-                vec![index.schema().get_field("content").expect("content field")],
-            );
-            let empty = "".to_string();
-            let x = args.get(1).unwrap_or(&empty);
-            dbg!(&x);
-            let query = query_parser.parse_query(x)?;
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
-            for (_score, doc_address) in top_docs {
-                let retrieved_doc = searcher.doc(doc_address)?;
-                println!("{}", index.schema().to_json(&retrieved_doc));
+            if let Some(query) = opt.query {
+                search(query, index);
+            } else if let Some(url) = opt.import_url {
+                indexer::index_url(url.to_string(), indexer::UrlMeta::default(), Some(&index));
             }
         }
         Err(_) => println!("count not access index"),

@@ -260,11 +260,16 @@ mod Indexer {
                         _ => meta.title.unwrap_or("".to_string()),
                     };
 
-                    let description =
-                        match document.find(select::predicate::Name("description")).nth(0) {
-                            Some(node) => node.text().to_string(),
-                            _ => "".to_string(),
-                        };
+                    let description = match document
+                        .find(select::predicate::Name("meta"))
+                        .into_selection()
+                        .filter(select::predicate::Attr("name", "description"))
+                        .iter()
+                        .nth(0)
+                    {
+                        Some(node) => node.text().to_string(),
+                        _ => "".to_string(),
+                    };
 
                     let body = match document.find(select::predicate::Name("body")).nth(0) {
                         Some(node) => node.text().split_whitespace().collect::<Vec<_>>().join(" "),
