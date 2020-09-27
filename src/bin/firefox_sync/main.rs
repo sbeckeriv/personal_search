@@ -1,33 +1,19 @@
 extern crate probabilistic_collections;
-use chrono::prelude::*;
-use chrono::{DateTime, TimeZone, Utc};
-use dirs;
+use chrono::{TimeZone, Utc};
 use glob::glob;
 use personal_search::indexer;
-use probabilistic_collections::similarity::{ShingleIterator, SimHash};
-use probabilistic_collections::SipHasherBuilder;
-use reqwest;
 use rusqlite::{params, Connection, Result};
-use select::document;
 use std::collections::HashSet;
 use std::env;
-use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
-use std::path::Path;
 use std::path::PathBuf;
-use std::time::Duration;
-use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
-use tantivy::schema::*;
-use tantivy::{Index, ReloadPolicy};
-use toml;
 
 fn find_places_file() -> Option<PathBuf> {
     //~/.mozilla/firefox/xdfjt9cu.default/places.sqlite
     let home = dirs::home_dir().expect("no home dir");
-    let mut entries = glob(&format!(
+    let entries = glob(&format!(
         "{}/.mozilla/firefox/*/places.sqlite",
         home.display()
     ))
@@ -72,7 +58,7 @@ fn main() -> tantivy::Result<()> {
         Some(arg_path) => Some(PathBuf::from(arg_path)),
         None => find_places_file(),
     };
-    let path_name = format!(".firefox_sync_cache.toml");
+    let path_name = ".firefox_sync_cache.toml".to_string();
     let mut s = String::new();
     let file = OpenOptions::new()
         .read(true)
@@ -80,7 +66,7 @@ fn main() -> tantivy::Result<()> {
         .create(true)
         .open(&path_name);
     match file {
-        Err(why) => {
+        Err(_why) => {
             //println!("couldn't open {}: {}", path_name, why.to_string());
         }
         Ok(mut file) => match file.read_to_string(&mut s) {
@@ -156,8 +142,7 @@ fn main() -> tantivy::Result<()> {
                         title: place.title,
                         bookmarked: Some(bookmarks.contains(&place.id)),
                         last_visit: place
-                            .last_visit_date
-                            .map_or(None, |num| Some(Utc.timestamp(num / 1000000, 0))),
+                            .last_visit_date.map(|num| Utc.timestamp(num / 1000000, 0)),
                         access_count: Some(place.visit_count),
                         pinned: None,
                         keywords: None,
