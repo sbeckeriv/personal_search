@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::env;
-use std::path::Path;
+
+
 use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::TopDocs;
@@ -37,7 +37,7 @@ fn search(query: String, index: tantivy::Index) {
         .collect();
 
     let query_parser = QueryParser::new(
-        index.schema().clone(),
+        index.schema(),
         default_fields,
         index.tokenizers().clone(),
     );
@@ -90,7 +90,7 @@ fn main() -> tantivy::Result<()> {
             if let Some(query) = opt.query {
                 search(query, index);
             } else if let Some(url) = opt.import_url {
-                indexer::index_url(url.to_string(), indexer::UrlMeta::default(), Some(&index));
+                indexer::index_url(url, indexer::UrlMeta::default(), Some(&index));
             }
         }
         Err(_) => println!("count not access index"),

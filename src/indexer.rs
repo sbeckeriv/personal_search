@@ -1,8 +1,8 @@
 use chrono::prelude::*;
-use lazy_static;
+
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
-use reqwest;
+
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
 use select::document;
 use std::collections::HashSet;
@@ -13,7 +13,7 @@ use std::time::Duration;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
-use tantivy::{doc, Index, ReloadPolicy};
+use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
 fn directory(
     system_path: &str,
@@ -38,7 +38,7 @@ pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError
 
     let schema = schema_builder.build();
     match directory {
-        Ok(dir) => Index::open_or_create(dir, schema.clone()),
+        Ok(dir) => Index::open_or_create(dir, schema),
         Err(_) => {
             println!("dir not found");
             Err(tantivy::TantivyError::SystemError(format!(
@@ -73,7 +73,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
 
     let schema = schema_builder.build();
     match directory {
-        Ok(dir) => Index::open_or_create(dir, schema.clone()),
+        Ok(dir) => Index::open_or_create(dir, schema),
         Err(_) => {
             println!("dir not found");
             Err(tantivy::TantivyError::SystemError(format!(
@@ -132,11 +132,7 @@ pub fn url_skip(url: &String) -> bool {
         true
     } else if ignore_starts.iter().any(|s| url.starts_with(s)) {
         true
-    } else if ignore_includes.iter().any(|s| url.contains(s)) {
-        true
-    } else {
-        false
-    }
+    } else { ignore_includes.iter().any(|s| url.contains(s)) }
 }
 fn domain_hash(domain: &str) -> String {
     let digest = md5::compute(domain.as_bytes());
@@ -182,7 +178,7 @@ pub fn add_hash(domain: &str, hash: u64) {
             index.schema().get_field("domain").expect("domain field"),
             &domain_hash,
         );
-        index_writer.delete_term(frankenstein_isbn.clone());
+        index_writer.delete_term(frankenstein_isbn);
         doc
     } else {
         let mut doc = tantivy::Document::default();
@@ -215,7 +211,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
     };
     if url_skip(&url) {
         println!("skip {}", url);
-    } else if let Some(doc_address) = find_url(&url, &index) {
+    } else if let Some(_doc_address) = find_url(&url, &index) {
         println!("have {}", url);
     // update?
 
@@ -228,8 +224,8 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
             Ok(body) => {
                 let document = document::Document::from(body.as_str());
                 let mut doc = tantivy::Document::default();
-                let title = match document.find(select::predicate::Name("title")).nth(0) {
-                    Some(node) => node.text().to_string(),
+                let title = match document.find(select::predicate::Name("title")).next() {
+                    Some(node) => node.text(),
                     _ => meta.title.unwrap_or("".to_string()),
                 };
 
@@ -237,14 +233,13 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     .find(select::predicate::Name("meta"))
                     .into_selection()
                     .filter(select::predicate::Attr("name", "description"))
-                    .iter()
-                    .nth(0)
+                    .iter().next()
                 {
-                    Some(node) => node.text().to_string(),
+                    Some(node) => node.text(),
                     _ => "".to_string(),
                 };
 
-                let body = match document.find(select::predicate::Name("body")).nth(0) {
+                let body = match document.find(select::predicate::Name("body")).next() {
                     Some(node) => node.text().split_whitespace().collect::<Vec<_>>().join(" "),
                     _ => {
                         // nothing to index
@@ -322,7 +317,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     .find(select::predicate::Name("meta"))
                     .filter(|node| node.attr("name").unwrap_or("") == "keywords")
                     .filter_map(|n| n.attr("content"))
-                    .flat_map(|s| s.split(","))
+                    .flat_map(|s| s.split(','))
                     .map(str::to_string)
                     .collect::<Vec<String>>();
 
@@ -332,7 +327,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                         Facet::from(&format!("/{}", keyword)),
                     );
                 }
-                for keyword in meta.keywords.unwrap_or(vec![]) {
+                for keyword in meta.keywords.unwrap_or_default() {
                     doc.add_facet(
                         index.schema().get_field("keywords").expect("keywords"),
                         Facet::from(&format!("/{}", keyword)),
@@ -365,7 +360,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     0,
                 );
 
-                add_hash(&parsed.domain().expect(("domian")), content_hash);
+                add_hash(&parsed.domain().expect("domian"), content_hash);
                 let mut index_writer = index.writer(50_000_000).expect("writer");
                 index_writer.add_document(doc);
                 index_writer.commit().expect("commit");
@@ -449,7 +444,7 @@ pub fn find_url(url: &String, index: &Index) -> std::option::Option<tantivy::Doc
     // roots like www.google.com/ will show up for
     // www.google.com/?q=some_search
     match top_docs.iter().nth(0) {
-        Some((_, doc_address)) => Some(doc_address.clone()),
+        Some((_, doc_address)) => Some(*doc_address),
         _ => None,
     }
 }
