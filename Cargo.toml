@@ -27,5 +27,5 @@ rust-bert ={ version = "*" }
 
 [[bin]]
 name = "firefox_sync"
-path = "src/firefox_sync/main.rs"
+path = "src/bin/firefox_sync/main.rs"
 features = ["firefox_sync"]
