@@ -6,6 +6,7 @@ edition = "2018"
 
 [features]
 firefox_sync = [ "rusqlite", "glob", "dirs" ]
+server = [ "actix-web", "serde", "actix-service", "futures", "env_logger", "serde_json", "json"]
 
 [dependencies]
 tantivy = "*"
@@ -17,15 +18,30 @@ lazy_static = "*"
 toml = "*"
 structopt = "*"
 
-dirs = { version = "*", optional = true }
-rusqlite = { version = "*", optional = true }
-glob = { version = "*", optional = true }
 probabilistic-collections = { version = "*", features = ["serde"] }
 triple_accel =  { version = "*" }
 md5 =  { version = "*"}
 rust-bert ={ version = "*" }
 
+dirs = { version = "*", optional = true }
+rusqlite = { version = "*", optional = true }
+glob = { version = "*", optional = true }
+
+
+actix-web =  { version = "3", optional = true }
+actix-service = { version =  "1", optional = true }
+futures =  { version = "0.3.1", optional = true }
+env_logger = { version =  "0.7", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json =  { version = "1", optional = true }
+json =  { version = "0.12", optional = true }
+
 [[bin]]
 name = "firefox_sync"
 path = "src/bin/firefox_sync/main.rs"
 features = ["firefox_sync"]
+
+[[bin]]
+name = "server"
+path = "src/bin/server/main.rs"
+features = ["server"]

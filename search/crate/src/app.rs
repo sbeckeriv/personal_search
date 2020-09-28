@@ -21,14 +21,64 @@ impl App {
     fn load_search(&self) {}
 
     fn load_terms(&self) {}
-    fn content(&self) -> Html {}
+    fn facets(&self) -> Html {
+        if self.term_items.len() == 0 {
+            html! {<></>}
+        } else {
+            html! {
+            <div class="col s1">
+              <ul class="collection with-header">
+                <li class="collection-header"><h6>{"Facets"}</h6></li>
+                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+              </ul>
+            </div>
+              }
+        }
+    }
+    fn search_results(&self) -> Html {
+        html! {
+        <ul class="collection">
+          <li class="collection-item avatar">
+            <img src="images/yuna.jpg" alt="" class="circle"/>
+            <span class="title">{"Title"}</span>
+            <p>{"First Line"} <br/>
+            {"Second Line"}
+            </p>
+            <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
+          </li>
+          <li class="collection-item avatar">
+            <span class="title">{"Title"}</span>
+            <p>{"First Line "}<br/>
+            {"Second Line"}
+            </p>
+            <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
+          </li>
+        </ul>
+        }
+    }
+    fn content(&self) -> Html {
+        html! {
+        <>
+        <div class="row">
+          {self.facets()}
+
+        <div class="col s11">
+        {self.search_results()}
+        </div>
+        </div>
+        </>
+        }
+    }
     fn header(&self) -> Html {
         html! {
         <>
         <header>
 
         <nav class="top-nav">
-            <div class="container">
                 <div class="nav-wrapper">
                     <a href="#" data-target="slide-out" class="sidenav-trigger brand-logo"><i class="material-icons">{"menu"}</i></a>
                     <form>
@@ -39,17 +89,9 @@ impl App {
                     </div>
                 </form>
                 </div>
-            </div>
         </nav>
-
-        <div class="container"/>
-            <ul id="slide-out" class="sidenav sidenav-fixed">
-                <li>{self.search.clone()}</li>
-                <li><div class="divider"></div></li>
-                <li><a class="subheader">{"Subheader"}</a></li>
-                <li><a class="waves-effect" href="#!">{"Third Link With Waves"}</a></li>
-            </ul>
         </header>
+
         </>
                     }
     }
@@ -106,6 +148,7 @@ impl Component for App {
         html! {
         <>
             {self.header()}
+            {self.content()}
         </>
         }
     }
