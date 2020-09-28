@@ -1,0 +1,21 @@
+{
+  "author": "Sendil Kumar N<sendilkumarn@live.com>",
+  "name": "create-rust-parcel",
+  "version": "0.0.2",
+  "repository": "https://github.com/rustwasm/rust-parcel-template",
+  "license": "Apache-2.0/MIT",
+  "scripts": {
+    "start": "parcel index.html",
+    "build": "parcel build index.html"
+  },
+  "bin": {
+    "create-rust-parcel": ".bin/create-rust-parcel.js"
+  },
+  "devDependencies": {
+    "parcel-bundler": "^1.12.4",
+    "parcel-plugin-wasm.rs": "^1.2.16"
+  },
+  "dependencies": {
+    "materialize-css": "^1.0.0-rc.2"
+  }
+}
