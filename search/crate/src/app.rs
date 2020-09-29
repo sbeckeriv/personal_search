@@ -103,17 +103,32 @@ impl App {
                 .and_then(|s| s.as_str())
                 .unwrap_or("");
 
+            let keywords: Vec<&str> = obj
+                .get("keywords")
+                .and_then(|s| s.as_array())
+                .and_then(|a| Some(a.iter().map(|x| x.as_str().unwrap_or("")).collect()))
+                .unwrap_or(vec![]);
+
             html! {
               <li class="collection-item avatar">
                 <span class="title"><a href=url target="_blank">{title}{" "}{url}</a></span>
                 <p> {description} <br/>
                 {summary}
+                <br/>
+                { keywords.iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
                 </p>
                 <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
               </li>
             }
         } else {
             html! {<></>}
+        }
+    }
+    fn chip(&self, string: &str) -> Html {
+        html! {
+            <div class="chip">
+                {string}
+            </div>
         }
     }
     fn search_results(&self) -> Html {
