@@ -75,15 +75,45 @@ impl App {
           }
     }
     fn search_item_html(&self, item: &Value) -> Html {
-        let obj = item.as_object().unwrap();
-        html! {
-          <li class="collection-item avatar">
-            <span class="title">{obj.get("title").unwrap()}</span>
-            <p> <br/>
-            {"Second Line"}
-            </p>
-            <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
-          </li>
+        if let Some(obj) = item.as_object() {
+            let title = obj
+                .get("title")
+                .and_then(|s| s.as_array())
+                .and_then(|a| a.get(0))
+                .and_then(|s| s.as_str())
+                .unwrap_or("");
+
+            let url = obj
+                .get("url")
+                .and_then(|s| s.as_array())
+                .and_then(|a| a.get(0))
+                .and_then(|s| s.as_str())
+                .unwrap_or("");
+
+            let description = obj
+                .get("description")
+                .and_then(|s| s.as_array())
+                .and_then(|a| a.get(0))
+                .and_then(|s| s.as_str())
+                .unwrap_or("");
+            let summary = obj
+                .get("summary")
+                .and_then(|s| s.as_array())
+                .and_then(|a| a.get(0))
+                .and_then(|s| s.as_str())
+                .unwrap_or("");
+
+            html! {
+              <li class="collection-item avatar">
+                <span class="title"><a href=url target="_blank">{title}{" "}{url}</a></span>
+                <p> {description} <br/>
+                {summary}
+                </p>
+                <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
+              </li>
+            }
+        } else {
+            html! {<></>}
         }
     }
     fn search_results(&self) -> Html {

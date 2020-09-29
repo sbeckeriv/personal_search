@@ -68,7 +68,7 @@ pub struct SearchRequest {
 /// This handler uses json extractor
 async fn index(web::Query(info): web::Query<SearchRequest>) -> web::Json<serde_json::Value> {
     let json_string = format!("{{\"results\":[{}]}}", search(info.q).join(","));
-    println!("{}", json_string);
+    //println!("{}", json_string);
     web::Json(serde_json::from_str(&json_string).expect(""))
 }
 
