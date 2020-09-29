@@ -181,7 +181,7 @@ impl App {
                     <a href="#" data-target="slide-out" class="sidenav-trigger brand-logo"><i class="material-icons">{"menu"}</i></a>
                     <form>
                     <div class="input-field">
-                        <input id="search" type="search" required=true value={self.search.clone()} oninput=self.link.callback(|e: InputData| Msg::Search(e.value))/>
+                        <input id="search" type="search" autocomplete="off" required=true value={self.search.clone()} oninput=self.link.callback(|e: InputData| Msg::Search(e.value))/>
                         <label class="label-icon" for="search"><i class="material-icons">{"search"}</i></label>
                         <i class="material-icons">{"close"}</i>
                     </div>

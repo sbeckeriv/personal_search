@@ -6,7 +6,7 @@
   "license": "Apache-2.0/MIT",
   "scripts": {
     "start": "parcel index.html --log-level 1 --port 7274 ",
-    "build": "parcel build index.html"
+    "build": "parcel build --no-content-hash --no-minify index.html"
   },
   "bin": {
     "create-rust-parcel": ".bin/create-rust-parcel.js"
