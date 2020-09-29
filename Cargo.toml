@@ -6,7 +6,7 @@ edition = "2018"
 
 [features]
 firefox_sync = [ "rusqlite", "glob", "dirs" ]
-server = [ "actix-web", "serde", "actix-service", "futures", "env_logger", "serde_json", "json"]
+server = [ "actix-web","actix-cors", "serde", "actix-service", "futures", "env_logger", "serde_json", "json"]
 
 [dependencies]
 tantivy = "*"
@@ -29,6 +29,7 @@ glob = { version = "*", optional = true }
 
 
 actix-web =  { version = "3", optional = true }
+actix-cors =  { version = "*", optional = true }
 actix-service = { version =  "1", optional = true }
 futures =  { version = "0.3.1", optional = true }
 env_logger = { version =  "0.7", optional = true }

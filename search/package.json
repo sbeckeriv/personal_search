@@ -1,11 +1,11 @@
 {
-  "author": "Sendil Kumar N<sendilkumarn@live.com>",
+  "author": "s",
   "name": "create-rust-parcel",
   "version": "0.0.2",
-  "repository": "https://github.com/rustwasm/rust-parcel-template",
+  "repository": "",
   "license": "Apache-2.0/MIT",
   "scripts": {
-    "start": "parcel index.html",
+    "start": "parcel index.html --log-level 1 --port 7274 ",
     "build": "parcel build index.html"
   },
   "bin": {

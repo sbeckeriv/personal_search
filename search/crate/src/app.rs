@@ -1,8 +1,13 @@
 use crate::pages::{About, Home};
+use anyhow::Error;
 use serde::ser;
+use serde_derive::{Deserialize, Serialize};
 use serde_json;
+use serde_json::Value;
+use yew::callback::Callback;
+use yew::format::{Format, Json, Nothing};
 use yew::prelude::*;
-use yew::services::fetch::{Request, Response};
+use yew::services::fetch::{FetchService, FetchTask, Request, Response};
 use yew_router::{prelude::*, route::Route, switch::Permissive, Switch};
 
 pub struct App {
@@ -10,34 +15,63 @@ pub struct App {
     link: ComponentLink<Self>,
     search_term: String,
     search: String,
-    search_items: Vec<serde_json::Result<Request<Vec<u8>>>>,
-    term_items: Vec<serde_json::Result<Request<Vec<u8>>>>,
+    search_items: Option<Value>,
+    term_items: Option<Value>,
+    fetching: bool,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct SearchResponse {
+    pub country_name: String,
+    pub country_code: String,
+    pub city: String,
+    pub ip: String,
 }
 
 impl App {
     fn init(&self) {
         //load_terms()
     }
-    fn load_search(&self) {}
-
+    fn fetch_json(
+        &mut self,
+        binary: bool,
+        url: String,
+        stored_data: String,
+    ) -> yew::services::fetch::FetchTask {
+        let callback = self
+            .link
+            .callback(move |response: Response<Json<Result<Value, Error>>>| {
+                let (meta, Json(data)) = response.into_parts();
+                if meta.status.is_success() {
+                    Msg::FetchReady((stored_data.clone(), data))
+                } else {
+                    Msg::Ignore // FIXME: Handle this error accordingly.
+                }
+            });
+        let mut request = Request::get(url)
+            .header("Accept", "application/json")
+            .body(Nothing)
+            .unwrap();
+        if binary {
+            FetchService::fetch_binary(request, callback).unwrap()
+        } else {
+            FetchService::fetch(request, callback).unwrap()
+        }
+    }
     fn load_terms(&self) {}
     fn facets(&self) -> Html {
-        if self.term_items.len() == 0 {
-            html! {<></>}
-        } else {
-            html! {
-            <div class="col s1">
-              <ul class="collection with-header">
-                <li class="collection-header"><h6>{"Facets"}</h6></li>
-                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-                <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-              </ul>
-            </div>
-              }
-        }
+        html! {
+        <div class="col s1">
+          <ul class="collection with-header">
+            <li class="collection-header"><h6>{"Facets"}</h6></li>
+            <li class="collection-item hoverable"><div>{self.search.clone()}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+            <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+            <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+            <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+            <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+          </ul>
+        </div>
+          }
     }
     fn search_results(&self) -> Html {
         html! {
@@ -45,7 +79,7 @@ impl App {
           <li class="collection-item avatar">
             <img src="images/yuna.jpg" alt="" class="circle"/>
             <span class="title">{"Title"}</span>
-            <p>{"First Line"} <br/>
+            <p>{format!("{:?}", self.search_items) } <br/>
             {"Second Line"}
             </p>
             <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
@@ -112,6 +146,8 @@ pub enum Msg {
     SearchTerms(String),
     Hide(String),
     HideDomain(String),
+    FetchReady((String, Result<Value, Error>)),
+    Ignore,
 }
 
 impl Component for App {
@@ -125,8 +161,9 @@ impl Component for App {
             navbar_items: vec![true, false],
             search_term: "".to_string(),
             search: "".to_string(),
-            search_items: empty,
-            term_items: Vec::new(),
+            search_items: None,
+            term_items: None,
+            fetching: false,
         }
     }
 
@@ -134,6 +171,17 @@ impl Component for App {
         match msg {
             Msg::Search(search_string) => {
                 self.search = search_string;
+                self.fetch_json(
+                    false,
+                    format!("http://localhost:7273/search?q={}", self.search),
+                    "search_items".to_string(),
+                );
+            }
+            Msg::FetchReady(response) => {
+                self.fetching = false;
+
+                let results = response.1.map(|data| data).ok();
+                self.search_items = results;
             }
             _ => {}
         }
