@@ -18,6 +18,7 @@ pub struct App {
     search_items: Option<Value>,
     term_items: Option<Value>,
     fetching: bool,
+    network_task: Option<yew::services::fetch::FetchTask>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -73,25 +74,43 @@ impl App {
         </div>
           }
     }
-    fn search_results(&self) -> Html {
+    fn search_item_html(&self, item: &Value) -> Html {
+        let obj = item.as_object().unwrap();
         html! {
-        <ul class="collection">
           <li class="collection-item avatar">
-            <img src="images/yuna.jpg" alt="" class="circle"/>
-            <span class="title">{"Title"}</span>
-            <p>{format!("{:?}", self.search_items) } <br/>
+            <span class="title">{obj.get("title").unwrap()}</span>
+            <p> <br/>
             {"Second Line"}
             </p>
             <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
           </li>
-          <li class="collection-item avatar">
-            <span class="title">{"Title"}</span>
-            <p>{"First Line "}<br/>
-            {"Second Line"}
-            </p>
-            <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
-          </li>
-        </ul>
+        }
+    }
+    fn search_results(&self) -> Html {
+        if let Some(items) = &self.search_items {
+            html! {
+            <ul class="collection">
+                { items["results"].as_array().unwrap().iter().map(|i|{ self.search_item_html(&i) }).collect::<Html>() }
+            </ul>
+            }
+        } else if self.fetching {
+            html! {
+            <ul class="collection">
+                <li>
+                    <div class="spinner-layer spinner-green">
+                        <div class="circle-clipper left">
+                          <div class="circle"></div>
+                        </div><div class="gap-patch">
+                          <div class="circle"></div>
+                        </div><div class="circle-clipper right">
+                          <div class="circle"></div>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+            }
+        } else {
+            html! { <></>}
         }
     }
     fn content(&self) -> Html {
@@ -164,6 +183,7 @@ impl Component for App {
             search_items: None,
             term_items: None,
             fetching: false,
+            network_task: None,
         }
     }
 
@@ -171,17 +191,22 @@ impl Component for App {
         match msg {
             Msg::Search(search_string) => {
                 self.search = search_string;
-                self.fetch_json(
+                self.network_task = Some(self.fetch_json(
                     false,
                     format!("http://localhost:7273/search?q={}", self.search),
                     "search_items".to_string(),
-                );
+                ));
             }
             Msg::FetchReady(response) => {
                 self.fetching = false;
-
-                let results = response.1.map(|data| data).ok();
-                self.search_items = results;
+                self.network_task = None;
+                match response.0.as_str() {
+                    "search_items" => {
+                        let results = response.1.map(|data| data).ok();
+                        self.search_items = results;
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         }
