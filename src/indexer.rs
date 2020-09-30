@@ -126,6 +126,14 @@ pub fn url_skip(url: &String) -> bool {
         "//0.0.0.0",
         "//lvh.me",
         "google.com/",
+        "ebay.com/",
+        "aha.io/",
+        "newrelic.com/",
+        "datadoghq.com/",
+        "amazon.com/",
+        "woot.com/",
+        "imgur.com",
+        "gstatic.com/",
     ];
     let ignore_starts = vec!["moz-extension://"];
     if !parsed.scheme().starts_with("http") {
@@ -156,7 +164,6 @@ pub fn add_hash(domain: &str, hash: u64) {
     let top_docs = searcher
         .search(&query, &TopDocs::with_limit(1))
         .expect("search");
-    dbg!(domain);
 
     let new_hash = format!("/{}", hash);
     let mut doc = if let Some(result) = top_docs.first() {
@@ -169,7 +176,6 @@ pub fn add_hash(domain: &str, hash: u64) {
             match s {
                 tantivy::schema::Value::Facet(facet) => {
                     if facet.to_path_string() == new_hash {
-                        dbg!("already have the hash");
                         return;
                     }
                 }
@@ -196,7 +202,6 @@ pub fn add_hash(domain: &str, hash: u64) {
         index.schema().get_field("hashes").expect("hash"),
         Facet::from(&new_hash),
     );
-    dbg!(&doc);
 
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
@@ -222,7 +227,12 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
     // let retrieved_doc = searcher.doc(doc_address).expect("doc");
     //    println!("{}", index.schema().to_json(&retrieved_doc));
     } else {
-        dbg!(&url);
+        let parsed = reqwest::Url::parse(&url).expect("url pase");
+
+        // covers ip only domains
+        if parsed.domain().is_none() {
+            return;
+        }
         match get_url(&url) {
             Ok(body) => {
                 let document = document::Document::from(body.as_str());
@@ -251,53 +261,57 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                         return;
                     }
                 };
+                if body.split_whitespace().nth(100).is_some() {
+                    let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
+                    let content_hash =
+                        sim_hash.get_sim_hash(ShingleIterator::new(2, body.split(' ').collect()));
+                    let dup = duplicate(&parsed.domain().unwrap().to_string(), &content_hash);
 
-                let parsed = reqwest::Url::parse(&url).expect("url pase");
-
-                let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
-                let content_hash =
-                    sim_hash.get_sim_hash(ShingleIterator::new(2, body.split(' ').collect()));
-                let dup = duplicate(&parsed.domain().unwrap().to_string(), &content_hash);
-
-                doc.add_u64(
-                    index
-                        .schema()
-                        .get_field("content_hash")
-                        .expect("content_hash"),
-                    content_hash,
-                );
-                doc.add_text(index.schema().get_field("title").expect("title"), &title);
-
-                if !dup {
-                    doc.add_text(index.schema().get_field("content").expect("content"), &body);
-                    doc.add_text(
+                    doc.add_u64(
                         index
                             .schema()
-                            .get_field("description")
-                            .expect("description"),
-                        &description,
+                            .get_field("content_hash")
+                            .expect("content_hash"),
+                        content_hash,
                     );
+                    add_hash(&parsed.domain().expect("domain"), content_hash);
 
-                    let config = SummarizationConfig::default();
+                    if !dup {
+                        doc.add_text(index.schema().get_field("content").expect("content"), &body);
 
-                    let result = panic::catch_unwind(|| {
-                        let summarization_model =
-                            SummarizationModel::new(config).expect("summarization_model fail");
-                        let input = [body.as_str()];
-                        summarization_model.summarize(&input).join(" ")
-                    });
+                        let config = SummarizationConfig::default();
 
-                    if result.is_ok() {
-                        doc.add_text(
+                        let result = panic::catch_unwind(|| {
+                            let summarization_model =
+                                SummarizationModel::new(config).expect("summarization_model fail");
+                            let input = [body.as_str()];
+                            summarization_model.summarize(&input).join(" ")
+                        });
+
+                        if result.is_ok() {
+                            doc.add_text(
                             index.schema().get_field("summary").expect("summary"),
                             &result.unwrap().replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "").trim(),
                         );
+                        } else {
+                            println!("sum error");
+                        }
                     } else {
-                        println!("sum error");
+                        doc.add_i64(index.schema().get_field("duplicate").expect("duplicate"), 1);
                     }
                 } else {
-                    doc.add_i64(index.schema().get_field("duplicate").expect("duplicate"), 1);
+                    // add the text anyway its small even if it is a dup
+                    doc.add_text(index.schema().get_field("content").expect("content"), &body);
                 }
+
+                doc.add_text(
+                    index
+                        .schema()
+                        .get_field("description")
+                        .expect("description"),
+                    &description,
+                );
+                doc.add_text(index.schema().get_field("title").expect("title"), &title);
                 doc.add_text(index.schema().get_field("url").expect("url"), &url);
 
                 doc.add_text(
@@ -363,7 +377,6 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     0,
                 );
 
-                add_hash(&parsed.domain().expect("domain"), content_hash);
                 let mut index_writer = index.writer(50_000_000).expect("writer");
                 index_writer.add_document(doc);
                 index_writer.commit().expect("commit");
@@ -394,10 +407,7 @@ pub fn duplicate(domain: &String, content_hash: &u64) -> bool {
     let top_docs = searcher
         .search(&query, &TopDocs::with_limit(1))
         .expect("search");
-    dbg!(domain);
-    dbg!(domain_hash);
     let content_hash_bytes = content_hash.to_le_bytes();
-    dbg!(&content_hash);
     for result in top_docs {
         for s in searcher
             .doc(result.1)
@@ -407,7 +417,6 @@ pub fn duplicate(domain: &String, content_hash: &u64) -> bool {
         {
             match s {
                 tantivy::schema::Value::Facet(facet) => {
-                    dbg!(&facet);
                     let hash_number = facet
                         .to_path()
                         .remove(0)
@@ -415,10 +424,7 @@ pub fn duplicate(domain: &String, content_hash: &u64) -> bool {
                         .unwrap_or(0)
                         .to_le_bytes();
 
-                    //dbg!(&hash_number);
-                    //dbg!(&content_hash_bytes);
                     let ham = hamming(&hash_number, &content_hash_bytes);
-                    dbg!(&ham);
                     if ham < 4 {
                         return true;
                     }

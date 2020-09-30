@@ -1,5 +1,8 @@
 use actix_cors::Cors;
-use actix_web::{error, http, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_files::NamedFile;
+use actix_web::{
+    error, http, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, Result,
+};
 use futures::StreamExt;
 use json::JsonValue;
 use personal_search::indexer;
@@ -66,10 +69,21 @@ pub struct SearchRequest {
     q: String,
 }
 /// This handler uses json extractor
-async fn index(web::Query(info): web::Query<SearchRequest>) -> web::Json<serde_json::Value> {
+async fn search_request(
+    web::Query(info): web::Query<SearchRequest>,
+) -> web::Json<serde_json::Value> {
     let json_string = format!("{{\"results\":[{}]}}", search(info.q).join(","));
     //println!("{}", json_string);
     web::Json(serde_json::from_str(&json_string).expect(""))
+}
+
+async fn index(req: HttpRequest) -> Result<NamedFile> {
+    let name = req.match_info().query("filename");
+    let name = name.replace("/", ""); // try not to leave the dir
+    let name = format!("{}/{}", "search/dist", name);
+    dbg!(&name);
+    let path: PathBuf = name.parse().unwrap();
+    Ok(NamedFile::open(path)?)
 }
 
 #[actix_web::main]
@@ -98,10 +112,10 @@ async fn main() -> std::io::Result<()> {
             .data(web::JsonConfig::default().limit(4096)) // <- limit size of the payload (global configuration)
             .service(
                 web::resource("/search")
-                    .route(web::get().to(index))
+                    .route(web::get().to(search_request))
                     .route(web::head().to(|| HttpResponse::MethodNotAllowed())),
             )
-            .service(web::resource("/").route(web::get().to(index)))
+            .service(web::resource("/{filename:.*}").route(web::get().to(index)))
     })
     .bind(&format!("127.0.0.1:{}", port))?
     .run()
