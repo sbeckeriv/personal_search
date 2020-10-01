@@ -19,7 +19,28 @@ pub struct Opt {
     #[structopt(parse(from_os_str))]
     search_folder_path: Option<PathBuf>,
 }
+use tantivy::collector::FacetCollector;
+use tantivy::doc;
+use tantivy::query::AllQuery;
+use tantivy::schema::{Facet, Schema, TEXT};
+fn facets(index: tantivy::Index) {
+    let searcher = indexer::searcher(&index);
+    let tags = index.schema().get_field("tags").expect("tag");
+    let mut facet_collector = FacetCollector::for_field(tags);
+    facet_collector.add_facet("/lang");
+    facet_collector.add_facet("/category");
+    let facet_counts = searcher.search(&AllQuery, &facet_collector).expect("facet");
 
+    // This lists all of the facet counts
+    let facets: Vec<(&Facet, u64)> = facet_counts.get("/category").collect();
+    assert_eq!(
+        facets,
+        vec![
+            (&Facet::from("/category/biography"), 1),
+            (&Facet::from("/category/fiction"), 3)
+        ]
+    );
+}
 fn search(query: String, index: tantivy::Index) {
     let searcher = indexer::searcher(&index);
     let default_fields: Vec<tantivy::schema::Field> = index

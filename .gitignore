@@ -6,7 +6,7 @@ target/
 .private_search_hashes/
 .private_search_hash/
 .firefox_sync_cache.toml
-
+*.7z
 */.cache/*
 .cache/*
 # Remove Cargo.lock from gitignore if creating an executable, leave it for libraries

@@ -17,6 +17,7 @@ serde_derive = "*"
 dotenv = "0.15"
 failure = "0.1"
 yew = { version="*", features = ["toml", "yaml", "msgpack", "cbor", "web_sys"]}
+url = "2.1.1"
 anyhow = "*"
 yew-router = { version = "0.14", features = ["web_sys"]}
 

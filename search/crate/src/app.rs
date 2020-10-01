@@ -4,10 +4,11 @@ use serde::ser;
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
 use serde_json::Value;
+use url::form_urlencoded::{byte_serialize, parse};
 use yew::callback::Callback;
 use yew::format::{Format, Json, Nothing};
 use yew::prelude::*;
-use yew::services::fetch::{FetchService, FetchTask, Request, Response};
+use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
 use yew_router::{prelude::*, route::Route, switch::Permissive, Switch};
 
 pub struct App {
@@ -15,18 +16,12 @@ pub struct App {
     link: ComponentLink<Self>,
     search_term: String,
     search: String,
+    port: String,
     search_items: Option<Value>,
-    term_items: Option<Value>,
+    facet_items: Option<Value>,
+    queued_search: Option<String>,
     fetching: bool,
     network_task: Option<yew::services::fetch::FetchTask>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct SearchResponse {
-    pub country_name: String,
-    pub country_code: String,
-    pub city: String,
-    pub ip: String,
 }
 
 impl App {
@@ -59,17 +54,18 @@ impl App {
             FetchService::fetch(request, callback).unwrap()
         }
     }
-    fn load_terms(&self) {}
-    fn facets(&self) -> Html {
+    fn facet_item(&self, name: &str) -> Html {
+        html! {
+            <li class="collection-item hoverable"><div><a href="#!" class="secondary-content">{name}</a></div></li>
+        }
+    }
+
+    fn facets(&self, header: &str, list: &Vec<&str>) -> Html {
         html! {
         <div class="col s1">
-          <ul class="collection with-header">
-            <li class="collection-header"><h6>{"Facets"}</h6></li>
-            <li class="collection-item hoverable"><div>{self.search.clone()}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-            <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-            <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-            <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
-            <li class="collection-item hoverable"><div>{"Alvin"}<a href="#!" class="secondary-content"><i class="material-icons">{"send"}</i></a></div></li>
+          <ul class="collection blue-grey with-header">
+            <li class="collection-header"><h6>{header}</h6></li>
+                {{list.iter().map(|i| self.facet_item(&i)).collect::<Html>()}}
           </ul>
         </div>
           }
@@ -125,10 +121,33 @@ impl App {
         }
     }
     fn chip(&self, string: &str) -> Html {
-        html! {
-            <div class="chip">
-                {string}
-            </div>
+        let string = string.trim();
+        let string = if string.starts_with("/") {
+            let mut chars = string.chars();
+            chars.next();
+            chars.as_str()
+        } else {
+            string
+        };
+        if string.is_empty() {
+            html! {<></>}
+        } else {
+            html! {
+                <div class="chip">
+                    {string}
+                </div>
+            }
+        }
+    }
+    fn loading_html(&self) -> Html {
+        if self.fetching {
+            html! {
+              <div class="progress">
+                  <div class="indeterminate"></div>
+              </div>
+            }
+        } else {
+            html! {<></>}
         }
     }
     fn search_results(&self) -> Html {
@@ -138,33 +157,42 @@ impl App {
                 { items["results"].as_array().unwrap().iter().map(|i|{ self.search_item_html(&i) }).collect::<Html>() }
             </ul>
             }
-        } else if self.fetching {
-            html! {
-            <ul class="collection">
-                <li>
-                    <div class="spinner-layer spinner-green">
-                        <div class="circle-clipper left">
-                          <div class="circle"></div>
-                        </div><div class="gap-patch">
-                          <div class="circle"></div>
-                        </div><div class="circle-clipper right">
-                          <div class="circle"></div>
-                        </div>
-                    </div>
-                </li>
-            </ul>
-            }
         } else {
             html! { <></>}
         }
     }
+    fn setting_modal(&self) -> Html {
+        html! {
+            <>
+        <a class="waves-effect waves-light btn modal-trigger" href="#modal1">{"Modal"}</a>
+
+        <div id="modal1" class="modal">
+          <div class="modal-content">
+          </div>
+        </div>
+        </>
+              }
+    }
     fn content(&self) -> Html {
+        let mut tags: Vec<&str> = vec![];
+
+        if let Some(item_list) = &self.facet_items {
+            for i in item_list
+                .get("tags")
+                .and_then(|s| s.as_array())
+                .and_then(|a| Some(a.iter().map(|x| x.as_str().unwrap_or("").clone()).collect()))
+                .unwrap_or(vec![])
+                .iter()
+            {
+                tags.push(i.clone());
+            }
+        }
         html! {
         <>
         <div class="row">
-          {self.facets()}
-
+        {self.facets("Facets", &tags )}
         <div class="col s11">
+        {self.loading_html()}
         {self.search_results()}
         </div>
         </div>
@@ -192,6 +220,16 @@ impl App {
 
         </>
                     }
+    }
+    fn fetch_search(&mut self, string: &str) {
+        self.fetching = true;
+        let urlencoded: String = byte_serialize(string.as_bytes()).collect();
+        // cause "debounce" the js kills the request the server still processes them
+        self.network_task = Some(self.fetch_json(
+            false,
+            format!("http://localhost:{}/search?q={}", self.port, urlencoded),
+            "search_items".to_string(),
+        ));
     }
 }
 
@@ -225,8 +263,10 @@ impl Component for App {
             navbar_items: vec![true, false],
             search_term: "".to_string(),
             search: "".to_string(),
+            port: "7172".to_string(),
             search_items: None,
-            term_items: None,
+            facet_items: None,
+            queued_search: None,
             fetching: false,
             network_task: None,
         }
@@ -236,22 +276,36 @@ impl Component for App {
         match msg {
             Msg::Search(search_string) => {
                 self.search = search_string;
-                self.network_task = Some(self.fetch_json(
-                    false,
-                    format!("http://localhost:7273/search?q={}", self.search),
-                    "search_items".to_string(),
-                ));
+                self.search_items = None;
+                if self.search.trim().len() > 0 {
+                    if self.fetching {
+                        //wonky debounce.
+                        self.queued_search = Some(self.search.clone());
+                    } else {
+                        self.fetch_search(&self.search.clone())
+                    }
+                } else {
+                    self.fetching = false;
+                    self.queued_search = None;
+                    self.network_task = None;
+                }
             }
             Msg::FetchReady(response) => {
                 self.fetching = false;
                 self.network_task = None;
-                match response.0.as_str() {
-                    "search_items" => {
-                        let results = response.1.map(|data| data).ok();
-                        self.search_items = results;
+                if let Some(next) = &self.queued_search {
+                    self.fetch_search(&next.clone())
+                } else {
+                    match response.0.as_str() {
+                        "search_items" => {
+                            let results = response.1.map(|data| data).ok();
+                            self.search_items = results;
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
+
+                self.queued_search = None;
             }
             _ => {}
         }

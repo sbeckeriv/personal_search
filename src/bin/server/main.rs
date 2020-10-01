@@ -90,10 +90,10 @@ async fn index(req: HttpRequest) -> Result<NamedFile> {
 async fn main() -> std::io::Result<()> {
     let opt = Opt::from_args();
     if !opt.silent {
-        std::env::set_var("RUST_LOG", "actix_web=info");
+        std::env::set_var("RUST_LOG", "actix_web=debug");
         env_logger::init();
     }
-    let port = opt.port.unwrap_or("7273".to_string());
+    let port = opt.port.unwrap_or("7172".to_string());
     HttpServer::new(|| {
         App::new()
             .wrap(
