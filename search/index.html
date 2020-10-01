@@ -6,10 +6,10 @@
 
     <title>!!</title>
     <style>
-      body {
-        height: 100%;
-        width: 100%;
-      }
+            body {
+              height: 100%;
+              width: 100%;
+            }
     </style>
     <!--Import Google Icon Font-->
     <link
@@ -24,6 +24,16 @@
       media="screen,projection"
     />
     <script src="js/index.js"></script>
+    <script src="js/materialize.min.js"></script>
+    <script>
+    window.onload = (event) => {
+     setTimeout(function() {
+        var elems = document.querySelectorAll(".modal");
+        var instances = M.Modal.init(elems, {});
+     },200);
+    };
+    </script>
   </head>
   <body></body>
+</html>
 </html>

@@ -164,10 +164,19 @@ impl App {
     fn setting_modal(&self) -> Html {
         html! {
             <>
-        <a class="waves-effect waves-light btn modal-trigger" href="#modal1">{"Modal"}</a>
 
-        <div id="modal1" class="modal">
+        <div id="setting_modal" class="modal">
           <div class="modal-content">
+              <div class="row">
+                <form class="col s12">
+                  <div class="row">
+                    <div class="input-field col s6">
+                      <input id="port" type="text" value={self.port.clone()} oninput=self.link.callback(|e: InputData| Msg::UpdatePort(e.value))/>
+                      <label class="active" for="port">{ "Server Port" }</label>
+                    </div>
+                  </div>
+                </form>
+              </div>
           </div>
         </div>
         </>
@@ -194,6 +203,7 @@ impl App {
         <div class="col s11">
         {self.loading_html()}
         {self.search_results()}
+
         </div>
         </div>
         </>
@@ -203,7 +213,6 @@ impl App {
         html! {
         <>
         <header>
-
         <nav class="top-nav">
                 <div class="nav-wrapper">
                     <a href="#" data-target="slide-out" class="sidenav-trigger brand-logo"><i class="material-icons">{"menu"}</i></a>
@@ -211,8 +220,10 @@ impl App {
                     <div class="input-field">
                         <input id="search" type="search" autocomplete="off" required=true value={self.search.clone()} oninput=self.link.callback(|e: InputData| Msg::Search(e.value))/>
                         <label class="label-icon" for="search"><i class="material-icons">{"search"}</i></label>
-                        <i class="material-icons">{"close"}</i>
                     </div>
+                     <a class="btn-floating btn-large halfway-fab waves-effect waves-light teal modal-trigger" href="#setting_modal">
+                        <i class="material-icons">{"settings"}</i>
+                      </a>
                 </form>
                 </div>
         </nav>
@@ -245,6 +256,7 @@ pub enum AppRouter {
 
 pub enum Msg {
     Search(String),
+    UpdatePort(String),
     SearchTerms(String),
     Hide(String),
     HideDomain(String),
@@ -263,6 +275,8 @@ impl Component for App {
             navbar_items: vec![true, false],
             search_term: "".to_string(),
             search: "".to_string(),
+            // write /read from local stoage
+            // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
             search_items: None,
             facet_items: None,
@@ -274,6 +288,9 @@ impl Component for App {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::UpdatePort(string) => {
+                self.port = string;
+            }
             Msg::Search(search_string) => {
                 self.search = search_string;
                 self.search_items = None;
@@ -319,8 +336,9 @@ impl Component for App {
     fn view(&self) -> Html {
         html! {
         <>
-            {self.header()}
-            {self.content()}
+            { self.header() }
+            { self.content() }
+            { self.setting_modal() }
         </>
         }
     }
