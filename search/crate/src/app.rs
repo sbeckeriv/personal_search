@@ -113,12 +113,36 @@ impl App {
                 <br/>
                 { keywords.iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
                 </p>
-                <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
-                <a href="#!" class="secondary-content"><i class="material-icons">{"pin"}</i></a>
+
+                { self.pinned(0)}
+                { self.bookmarked(0)}
               </li>
             }
         } else {
             html! {<></>}
+        }
+    }
+
+    fn pinned(&self, marked: i8) -> Html {
+        if marked == 1 {
+            html! {
+            <a href="#!" class="secondary-content tooltipped search-pinned" data-position="bottom" data-tooltip="Pinned"><i class="material-icons">{"star"}</i></a>
+            }
+        } else {
+            html! {
+                <a href="#!" class="secondary-content tooltipped search-pinned"  data-position="bottom" data-tooltip="Pinned"><i class="material-icons">{"star_border"}</i></a>
+            }
+        }
+    }
+    fn bookmarked(&self, marked: i8) -> Html {
+        if marked == 1 {
+            html! {
+            <a href="#!" class="secondary-content tooltipped search-bookmarked" data-position="bottom" data-tooltip="Bookmark"><i class="material-icons">{"bookmark"}</i></a>
+            }
+        } else {
+            html! {
+                <a href="#!" class="secondary-content tooltipped search-bookmarked"  data-position="bottom" data-tooltip="Bookmark"><i class="material-icons">{"bookmark_border"}</i></a>
+            }
         }
     }
     fn chip(&self, string: &str) -> Html {
