@@ -114,6 +114,7 @@ impl App {
                 { keywords.iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
                 </p>
                 <a href="#!" class="secondary-content"><i class="material-icons">{"grade"}</i></a>
+                <a href="#!" class="secondary-content"><i class="material-icons">{"pin"}</i></a>
               </li>
             }
         } else {
