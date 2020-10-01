@@ -10,5 +10,7 @@ Provide a home page
 Provide search bar widget
 
 
+https://raw.githubusercontent.com/sbeckeriv/personal_search/master/example.png
+
 Using:
 tantivy for search
