@@ -9,8 +9,8 @@ Automatic processors (firefox: Read the sqlite db)
 Provide a home page
 Provide search bar widget
 
-
-https://raw.githubusercontent.com/sbeckeriv/personal_search/master/example.png
+![search page](https://raw.githubusercontent.com/sbeckeriv/personal_search/master/example.png
+)
 
 Using:
 tantivy for search
