@@ -29,7 +29,7 @@ fn directory(
 pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
     // dont keep its own index? we are writing the domain and duplicate urls to prevent them
     // from reloading. just use that?
-    let system_path = ".private_search_hashes";
+    let system_path = ".test_private_search_hashes";
     let directory = directory(&system_path);
 
     let mut schema_builder = Schema::builder();
@@ -49,7 +49,7 @@ pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError
     }
 }
 pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
-    let system_path = ".private_search";
+    let system_path = ".test_private_search";
     let directory = directory(&system_path);
 
     let mut schema_builder = Schema::builder();
@@ -58,8 +58,8 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
     schema_builder.add_text_field("content", TEXT);
     schema_builder.add_text_field("domain", TEXT | STORED);
     schema_builder.add_text_field("context", TEXT);
-    schema_builder.add_text_field("summary", STORED);
-    schema_builder.add_text_field("description", STORED);
+    schema_builder.add_text_field("summary", TEXT | STORED);
+    schema_builder.add_text_field("description", TEXT | STORED);
     schema_builder.add_i64_field("bookmarked", STORED | INDEXED);
     schema_builder.add_i64_field("duplicate", STORED | INDEXED);
     schema_builder.add_u64_field("content_hash", STORED | INDEXED);
@@ -68,7 +68,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
     schema_builder.add_facet_field("outlinks");
     schema_builder.add_facet_field("tags");
     schema_builder.add_facet_field("keywords");
-    schema_builder.add_date_field("added_at", STORED | INDEXED);
+    schema_builder.add_date_field("added_at", STORED);
     schema_builder.add_date_field("last_accessed_at", STORED | INDEXED);
 
     let schema = schema_builder.build();

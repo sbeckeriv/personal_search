@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::TopDocs;
+use tantivy::fastfield::FacetReader;
 use tantivy::query::QueryParser;
 mod indexer;
 
@@ -11,6 +12,8 @@ pub struct Opt {
     query: Option<String>,
     #[structopt(long = "import_url")]
     import_url: Option<String>,
+    #[structopt(long = "facets")]
+    facets: Option<String>,
     #[structopt(short = "s", long = "silent")]
     silent: bool,
     #[structopt(short = "v", long = "verbose")]
@@ -24,22 +27,18 @@ use tantivy::doc;
 use tantivy::query::AllQuery;
 use tantivy::schema::{Facet, Schema, TEXT};
 fn facets(index: tantivy::Index) {
-    let searcher = indexer::searcher(&index);
+    let index = indexer::search_index().expect("index");
+    let reader = index.reader().expect("Reader");
+    let searcher = reader.searcher();
     let tags = index.schema().get_field("tags").expect("tag");
     let mut facet_collector = FacetCollector::for_field(tags);
-    facet_collector.add_facet("/lang");
-    facet_collector.add_facet("/category");
-    let facet_counts = searcher.search(&AllQuery, &facet_collector).expect("facet");
-
-    // This lists all of the facet counts
-    let facets: Vec<(&Facet, u64)> = facet_counts.get("/category").collect();
-    assert_eq!(
-        facets,
-        vec![
-            (&Facet::from("/category/biography"), 1),
-            (&Facet::from("/category/fiction"), 3)
-        ]
-    );
+    facet_collector.add_facet("/Felidae");
+    let facet_counts = searcher
+        .search(&AllQuery, &facet_collector)
+        .expect("search");
+    // This lists all of the facet counts, right below "/Felidae".
+    let facets: Vec<(&Facet, u64)> = facet_counts.get("/Felidae").collect();
+    dbg!(&facets);
 }
 fn search(query: String, index: tantivy::Index) {
     let searcher = indexer::searcher(&index);
@@ -112,6 +111,8 @@ fn main() -> tantivy::Result<()> {
                 search(query, index);
             } else if let Some(url) = opt.import_url {
                 indexer::index_url(url, indexer::UrlMeta::default(), Some(&index));
+            } else if let Some(facet) = opt.facets {
+                facets(index);
             }
         }
         Err(_) => println!("count not access index"),
