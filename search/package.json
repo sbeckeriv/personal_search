@@ -16,7 +16,6 @@
     "parcel-plugin-wasm.rs": "^1.2.16"
   },
   "dependencies": {
-    "darkmode-js": "^1.5.7",
-    "materialize-css": "^1.0.0-rc.2"
+    "darkmode-js": "^1.5.7"
   }
 }
