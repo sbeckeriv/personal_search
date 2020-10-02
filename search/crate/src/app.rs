@@ -3,31 +3,227 @@ use anyhow::Error;
 use serde::ser;
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
+use serde_json::json;
 use serde_json::Value;
 use url::form_urlencoded::{byte_serialize, parse};
 use yew::callback::Callback;
 use yew::format::{Format, Json, Nothing};
 use yew::prelude::*;
+use yew::services::console::ConsoleService;
 use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
 use yew_router::{prelude::*, route::Route, switch::Permissive, Switch};
 
 pub struct App {
+    search_results: SearchResults,
+    facet_results: FacetResults,
     navbar_items: Vec<bool>,
     link: ComponentLink<Self>,
     search_term: String,
     search: String,
     port: String,
-    search_items: Option<Value>,
-    facet_items: Option<Value>,
     queued_search: Option<String>,
     fetching: bool,
     network_task: Option<yew::services::fetch::FetchTask>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SearchArray {
+    results: Vec<SearchJson>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct SearchJson {
+    title: Vec<String>,
+    url: Vec<String>,
+    summary: Vec<String>,
+    description: Vec<String>,
+    keywords: Option<Vec<String>>,
+    tags: Option<Vec<String>>,
+    bookmarked: Vec<i8>,
+    pinned: Vec<i8>,
+    duplicate: Option<Vec<i8>>,
+    accessed_count: Vec<isize>,
+    added_at: Vec<String>,
+    last_accessed_at: Option<Vec<String>>,
+}
+#[derive(Default)]
+pub struct SearchResults {
+    search_json: Option<SearchArray>,
+}
+
+impl SearchResults {
+    fn for_value(results: Option<Value>) -> Self {
+        match results {
+            Some(results) => SearchResults {
+                search_json: serde_json::from_value(results).ok(),
+            },
+            None => SearchResults::default(),
+        }
+    }
+    fn facet_item(&self, name: &str) -> Html {
+        html! {
+            <li class="collection-item hoverable"><div><a href="#!" class="secondary-content">{name}</a></div></li>
+        }
+    }
+    fn search_item_html(&self, obj: &SearchJson) -> Html {
+        let title = obj
+            .title
+            .get(0)
+            .and_then(|s| Some(s.as_str()))
+            .unwrap_or("");
+
+        let url = obj.url.get(0).and_then(|s| Some(s.as_str())).unwrap_or("");
+
+        let description = obj
+            .description
+            .get(0)
+            .and_then(|s| Some(s.as_str()))
+            .unwrap_or("");
+
+        let summary = obj
+            .summary
+            .get(0)
+            .and_then(|s| Some(s.as_str()))
+            .unwrap_or("");
+
+        let pinned = obj.pinned.get(0).unwrap_or(&0);
+        let bookmarked = obj.bookmarked.get(0).unwrap_or(&0);
+
+        html! {
+          <li class="collection-item avatar">
+            <span class="title"><a href=url target="_blank">{title}{" "}{url}</a></span>
+            <p> {description} <br/>
+            {summary}
+            <br/>
+            { obj.keywords.as_ref().unwrap_or(&vec![]).iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
+            </p>
+
+            { self.pinned(pinned)}
+            { self.bookmarked(bookmarked)}
+          </li>
+        }
+    }
+
+    fn pinned(&self, marked: &i8) -> Html {
+        if marked == &1 {
+            html! {
+            <a href="#!" class="secondary-content tooltipped search-pinned" data-position="bottom" data-tooltip="Pinned">
+                <i class="material-icons">{"star"}</i>
+            </a>
+            }
+        } else {
+            html! {
+                <a href="#!" class="secondary-content tooltipped search-pinned"  data-position="bottom" data-tooltip="Pinned">
+                    <i class="material-icons">{"star_border"}</i>
+                </a>
+            }
+        }
+    }
+    fn bookmarked(&self, marked: &i8) -> Html {
+        if marked == &1 {
+            html! {
+            <a href="#!" class="secondary-content tooltipped search-bookmarked" data-position="bottom" data-tooltip="Bookmark">
+                <i class="material-icons">{"bookmark"}</i>
+            </a>
+            }
+        } else {
+            html! {
+                <a href="#!" class="secondary-content tooltipped search-bookmarked"  data-position="bottom" data-tooltip="Bookmark">
+                    <i class="material-icons">{"bookmark_border"}</i>
+                </a>
+            }
+        }
+    }
+
+    fn chip(&self, string: &str) -> Html {
+        let string = string.trim();
+        let string = if string.starts_with("/") {
+            let mut chars = string.chars();
+            chars.next();
+            chars.as_str()
+        } else {
+            string
+        };
+        if string.is_empty() {
+            html! {<></>}
+        } else {
+            html! {
+                <div class="chip">
+                    {string}
+                </div>
+            }
+        }
+    }
+
+    fn search_results(&self) -> Html {
+        if let Some(json) = &self.search_json {
+            html! {
+            <ul class="collection">
+                { json.results.iter().map(|i|{ self.search_item_html(&i) }).collect::<Html>() }
+            </ul>
+            }
+        } else {
+            html! {
+                <></>
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct FacetArray {
+    results: Vec<FacetJson>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct FacetJson {
+    name: Vec<String>,
+    count: Option<Vec<isize>>,
+}
+#[derive(Default)]
+pub struct FacetResults {
+    facet_json: Option<FacetArray>,
+    header: String,
+}
+
+impl FacetResults {
+    fn for_value(results: Option<Value>, header: &str) -> Self {
+        match results {
+            Some(results) => FacetResults {
+                facet_json: serde_json::from_value(results).ok(),
+                header: header.to_string(),
+            },
+            None => FacetResults::default(),
+        }
+    }
+
+    fn facet_item(&self, name: &str) -> Html {
+        html! {
+            <li class="collection-item hoverable"><div><a href="#!" class="secondary-content">{name}</a></div></li>
+        }
+    }
+
+    fn facets(&self, header: &str) -> Html {
+        if let Some(json) = &self.facet_json {
+            html! {
+            <div class="col s1">
+              <ul class="collection blue-grey with-header">
+                <li class="collection-header"><h6>{header}</h6></li>
+                    //{{list.iter().map(|i| self.facet_item(&i)).collect::<Html>()}}
+              </ul>
+            </div>
+              }
+        } else {
+            html! {
+                <></>
+            }
+        }
+    }
 }
 
 impl App {
     fn init(&self) {
         //load_terms()
     }
+
     fn fetch_json(
         &mut self,
         binary: bool,
@@ -54,116 +250,7 @@ impl App {
             FetchService::fetch(request, callback).unwrap()
         }
     }
-    fn facet_item(&self, name: &str) -> Html {
-        html! {
-            <li class="collection-item hoverable"><div><a href="#!" class="secondary-content">{name}</a></div></li>
-        }
-    }
 
-    fn facets(&self, header: &str, list: &Vec<&str>) -> Html {
-        html! {
-        <div class="col s1">
-          <ul class="collection blue-grey with-header">
-            <li class="collection-header"><h6>{header}</h6></li>
-                {{list.iter().map(|i| self.facet_item(&i)).collect::<Html>()}}
-          </ul>
-        </div>
-          }
-    }
-    fn search_item_html(&self, item: &Value) -> Html {
-        if let Some(obj) = item.as_object() {
-            let title = obj
-                .get("title")
-                .and_then(|s| s.as_array())
-                .and_then(|a| a.get(0))
-                .and_then(|s| s.as_str())
-                .unwrap_or("");
-
-            let url = obj
-                .get("url")
-                .and_then(|s| s.as_array())
-                .and_then(|a| a.get(0))
-                .and_then(|s| s.as_str())
-                .unwrap_or("");
-
-            let description = obj
-                .get("description")
-                .and_then(|s| s.as_array())
-                .and_then(|a| a.get(0))
-                .and_then(|s| s.as_str())
-                .unwrap_or("");
-            let summary = obj
-                .get("summary")
-                .and_then(|s| s.as_array())
-                .and_then(|a| a.get(0))
-                .and_then(|s| s.as_str())
-                .unwrap_or("");
-
-            let keywords: Vec<&str> = obj
-                .get("keywords")
-                .and_then(|s| s.as_array())
-                .and_then(|a| Some(a.iter().map(|x| x.as_str().unwrap_or("")).collect()))
-                .unwrap_or(vec![]);
-
-            html! {
-              <li class="collection-item avatar">
-                <span class="title"><a href=url target="_blank">{title}{" "}{url}</a></span>
-                <p> {description} <br/>
-                {summary}
-                <br/>
-                { keywords.iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
-                </p>
-
-                { self.pinned(0)}
-                { self.bookmarked(0)}
-              </li>
-            }
-        } else {
-            html! {<></>}
-        }
-    }
-
-    fn pinned(&self, marked: i8) -> Html {
-        if marked == 1 {
-            html! {
-            <a href="#!" class="secondary-content tooltipped search-pinned" data-position="bottom" data-tooltip="Pinned"><i class="material-icons">{"star"}</i></a>
-            }
-        } else {
-            html! {
-                <a href="#!" class="secondary-content tooltipped search-pinned"  data-position="bottom" data-tooltip="Pinned"><i class="material-icons">{"star_border"}</i></a>
-            }
-        }
-    }
-    fn bookmarked(&self, marked: i8) -> Html {
-        if marked == 1 {
-            html! {
-            <a href="#!" class="secondary-content tooltipped search-bookmarked" data-position="bottom" data-tooltip="Bookmark"><i class="material-icons">{"bookmark"}</i></a>
-            }
-        } else {
-            html! {
-                <a href="#!" class="secondary-content tooltipped search-bookmarked"  data-position="bottom" data-tooltip="Bookmark"><i class="material-icons">{"bookmark_border"}</i></a>
-            }
-        }
-    }
-    fn chip(&self, string: &str) -> Html {
-        let string = string.trim();
-        let string = if string.starts_with("/") {
-            let mut chars = string.chars();
-            chars.next();
-            chars.as_str()
-        } else {
-            string
-        };
-        if string.is_empty() {
-            html! {<></>}
-        } else {
-            html! {
-                <div class="chip">
-                    {string}
-                </div>
-            }
-        }
-    }
     fn loading_html(&self) -> Html {
         if self.fetching {
             html! {
@@ -175,21 +262,9 @@ impl App {
             html! {<></>}
         }
     }
-    fn search_results(&self) -> Html {
-        if let Some(items) = &self.search_items {
-            html! {
-            <ul class="collection">
-                { items["results"].as_array().unwrap().iter().map(|i|{ self.search_item_html(&i) }).collect::<Html>() }
-            </ul>
-            }
-        } else {
-            html! { <></>}
-        }
-    }
     fn setting_modal(&self) -> Html {
         html! {
             <>
-
         <div id="setting_modal" class="modal">
           <div class="modal-content">
               <div class="row">
@@ -210,24 +285,13 @@ impl App {
     fn content(&self) -> Html {
         let mut tags: Vec<&str> = vec![];
 
-        if let Some(item_list) = &self.facet_items {
-            for i in item_list
-                .get("tags")
-                .and_then(|s| s.as_array())
-                .and_then(|a| Some(a.iter().map(|x| x.as_str().unwrap_or("").clone()).collect()))
-                .unwrap_or(vec![])
-                .iter()
-            {
-                tags.push(i.clone());
-            }
-        }
         html! {
         <>
         <div class="row">
-        {self.facets("Facets", &tags )}
+        {self.facet_results.facets("Keywords")}
         <div class="col s11">
         {self.loading_html()}
-        {self.search_results()}
+        {self.search_results.search_results()}
 
         </div>
         </div>
@@ -257,6 +321,7 @@ impl App {
         </>
                     }
     }
+
     fn fetch_search(&mut self, string: &str) {
         self.fetching = true;
         let urlencoded: String = byte_serialize(string.as_bytes()).collect();
@@ -303,8 +368,8 @@ impl Component for App {
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
-            search_items: None,
-            facet_items: None,
+            search_results: SearchResults::default(),
+            facet_results: FacetResults::default(),
             queued_search: None,
             fetching: false,
             network_task: None,
@@ -318,7 +383,8 @@ impl Component for App {
             }
             Msg::Search(search_string) => {
                 self.search = search_string;
-                self.search_items = None;
+                // remove dup?
+                self.search_results = SearchResults::default();
                 if self.search.trim().len() > 0 {
                     if self.fetching {
                         //wonky debounce.
@@ -341,7 +407,8 @@ impl Component for App {
                     match response.0.as_str() {
                         "search_items" => {
                             let results = response.1.map(|data| data).ok();
-                            self.search_items = results;
+                            // remove dup
+                            self.search_results = SearchResults::for_value(results);
                         }
                         _ => {}
                     }

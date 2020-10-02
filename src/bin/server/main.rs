@@ -11,8 +11,12 @@ use serde_json;
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use structopt::StructOpt;
+use tantivy::collector::FacetCollector;
 use tantivy::collector::TopDocs;
+use tantivy::doc;
+use tantivy::query::AllQuery;
 use tantivy::query::QueryParser;
+use tantivy::schema::{Facet, Schema, TEXT};
 
 #[derive(StructOpt, Debug)]
 pub struct Opt {
@@ -25,6 +29,37 @@ pub struct Opt {
     #[structopt(long = "search_folder")]
     #[structopt(parse(from_os_str))]
     search_folder_path: Option<PathBuf>,
+}
+#[derive(Serialize)]
+struct FacetCount {
+    name: String,
+    count: u64,
+}
+fn facets(query: String, field: String) -> Vec<FacetCount> {
+    let query = if query.starts_with("/") {
+        query
+    } else {
+        format!("/{}", query)
+    };
+
+    let index = indexer::search_index().expect("could not open search index");
+    let searcher = indexer::searcher(&index);
+    let tags = index
+        .schema()
+        .get_field(&field)
+        .expect(&format!("{} not a field", field));
+    let mut facet_collector = FacetCollector::for_field(tags);
+    facet_collector.add_facet(&query);
+
+    let facet_counts = searcher.search(&AllQuery, &facet_collector).expect("facet");
+
+    facet_counts
+        .get(&query)
+        .map(|f| FacetCount {
+            name: format!("{}", f.0),
+            count: f.1,
+        })
+        .collect()
 }
 
 fn search(query: String) -> Vec<String> {
@@ -68,6 +103,12 @@ fn search(query: String) -> Vec<String> {
 pub struct SearchRequest {
     q: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct FacetRequest {
+    facet: String,
+    facet_field: Option<String>,
+}
 /// This handler uses json extractor
 async fn search_request(
     web::Query(info): web::Query<SearchRequest>,
@@ -75,6 +116,11 @@ async fn search_request(
     let json_string = format!("{{\"results\":[{}]}}", search(info.q).join(","));
     //println!("{}", json_string);
     web::Json(serde_json::from_str(&json_string).expect(""))
+}
+
+async fn facet_request(web::Query(info): web::Query<FacetRequest>) -> web::Json<Vec<FacetCount>> {
+    let field = info.facet_field.unwrap_or("keywords".to_string());
+    web::Json(facets(info.facet, field))
 }
 
 async fn index(req: HttpRequest) -> Result<NamedFile> {
@@ -113,6 +159,11 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::resource("/search")
                     .route(web::get().to(search_request))
+                    .route(web::head().to(|| HttpResponse::MethodNotAllowed())),
+            )
+            .service(
+                web::resource("/facets")
+                    .route(web::get().to(facet_request))
                     .route(web::head().to(|| HttpResponse::MethodNotAllowed())),
             )
             .service(web::resource("/{filename:.*}").route(web::get().to(index)))

@@ -11,6 +11,11 @@ pub struct Opt {
     query: Option<String>,
     #[structopt(long = "import_url")]
     import_url: Option<String>,
+    #[structopt(long = "facet")]
+    facet: Option<String>,
+
+    #[structopt(long = "facet_field")]
+    facet_field: Option<String>,
     #[structopt(short = "s", long = "silent")]
     silent: bool,
     #[structopt(short = "v", long = "verbose")]
@@ -23,23 +28,19 @@ use tantivy::collector::FacetCollector;
 use tantivy::doc;
 use tantivy::query::AllQuery;
 use tantivy::schema::{Facet, Schema, TEXT};
-fn facets(index: tantivy::Index) {
+fn facets(index: tantivy::Index, field: &str, facet: &str) {
     let searcher = indexer::searcher(&index);
-    let tags = index.schema().get_field("tags").expect("tag");
+    let tags = index
+        .schema()
+        .get_field(field)
+        .expect(&format!("{} not a field", field));
     let mut facet_collector = FacetCollector::for_field(tags);
-    facet_collector.add_facet("/lang");
-    facet_collector.add_facet("/category");
+    facet_collector.add_facet(facet);
     let facet_counts = searcher.search(&AllQuery, &facet_collector).expect("facet");
 
     // This lists all of the facet counts
-    let facets: Vec<(&Facet, u64)> = facet_counts.get("/category").collect();
-    assert_eq!(
-        facets,
-        vec![
-            (&Facet::from("/category/biography"), 1),
-            (&Facet::from("/category/fiction"), 3)
-        ]
-    );
+    let facets: Vec<(&Facet, u64)> = facet_counts.get(facet).collect();
+    dbg!(facets);
 }
 fn search(query: String, index: tantivy::Index) {
     let searcher = indexer::searcher(&index);
@@ -112,6 +113,9 @@ fn main() -> tantivy::Result<()> {
                 search(query, index);
             } else if let Some(url) = opt.import_url {
                 indexer::index_url(url, indexer::UrlMeta::default(), Some(&index));
+            } else if let Some(facet) = opt.facet {
+                let field = opt.facet_field.unwrap_or("tags".to_string());
+                facets(index, &field, &facet);
             }
         }
         Err(_) => println!("count not access index"),

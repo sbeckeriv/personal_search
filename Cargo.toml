@@ -9,7 +9,7 @@ firefox_sync = [ "rusqlite", "glob", "dirs" ]
 server = [ "actix-web","actix-cors", "actix-files", "serde", "actix-service", "futures", "env_logger", "serde_json", "json"]
 
 [dependencies]
-tantivy = "*"
+tantivy = "0.13.2"
 reqwest = { version = "*", features = ["blocking"] }
 select = "*"
 tempfile = "*"
