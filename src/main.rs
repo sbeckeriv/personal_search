@@ -25,15 +25,15 @@ pub struct Opt {
     search_folder_path: Option<PathBuf>,
 }
 use tantivy::collector::FacetCollector;
-use tantivy::doc;
+
 use tantivy::query::AllQuery;
-use tantivy::schema::{Facet, Schema, TEXT};
+use tantivy::schema::{Facet};
 fn facets(index: tantivy::Index, field: &str, facet: &str) {
     let searcher = indexer::searcher(&index);
     let tags = index
         .schema()
         .get_field(field)
-        .expect(&format!("{} not a field", field));
+        .unwrap_or_else(|| panic!("{} not a field", field));
     let mut facet_collector = FacetCollector::for_field(tags);
     facet_collector.add_facet(facet);
     let facet_counts = searcher.search(&AllQuery, &facet_collector).expect("facet");

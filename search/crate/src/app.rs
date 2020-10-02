@@ -30,20 +30,21 @@ pub struct App {
 struct SearchArray {
     results: Vec<SearchJson>,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 struct SearchJson {
-    title: Vec<String>,
-    url: Vec<String>,
-    summary: Vec<String>,
-    description: Vec<String>,
-    keywords: Option<Vec<String>>,
-    tags: Option<Vec<String>>,
-    bookmarked: Vec<i8>,
-    pinned: Vec<i8>,
-    duplicate: Option<Vec<i8>>,
-    accessed_count: Vec<isize>,
-    added_at: Vec<String>,
-    last_accessed_at: Option<Vec<String>>,
+    title: String,
+    url: String,
+    summary: String,
+    description: String,
+    keywords: Vec<String>,
+    tags: Vec<String>,
+    bookmarked: i64,
+    pinned: i64,
+    duplicate: i64,
+    accessed_count: i64,
+    added_at: String,
+    last_accessed_at: String,
 }
 #[derive(Default)]
 pub struct SearchResults {

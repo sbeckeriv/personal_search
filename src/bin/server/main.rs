@@ -4,11 +4,11 @@ use actix_web::{
     error, http, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, Result,
 };
 use futures::StreamExt;
-use json::JsonValue;
+
 use personal_search::indexer;
 use serde::{Deserialize, Serialize};
-use serde_json;
-use std::collections::{BTreeMap, HashMap};
+
+use std::collections::{HashMap};
 use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::FacetCollector;
@@ -16,7 +16,7 @@ use tantivy::collector::TopDocs;
 use tantivy::doc;
 use tantivy::query::AllQuery;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Facet, Schema, TEXT};
+
 
 #[derive(StructOpt, Debug)]
 pub struct Opt {
@@ -36,7 +36,7 @@ struct FacetCount {
     count: u64,
 }
 fn facets(query: String, field: String) -> Vec<FacetCount> {
-    let query = if query.starts_with("/") {
+    let query = if query.starts_with('/') {
         query
     } else {
         format!("/{}", query)
@@ -47,7 +47,7 @@ fn facets(query: String, field: String) -> Vec<FacetCount> {
     let tags = index
         .schema()
         .get_field(&field)
-        .expect(&format!("{} not a field", field));
+        .unwrap_or_else(|| panic!("{} not a field", field));
     let mut facet_collector = FacetCollector::for_field(tags);
     facet_collector.add_facet(&query);
 
@@ -62,7 +62,22 @@ fn facets(query: String, field: String) -> Vec<FacetCount> {
         .collect()
 }
 
-fn search(query: String) -> Vec<String> {
+#[derive(Serialize, Deserialize, Debug)]
+struct SearchJson {
+    title: String,
+    url: String,
+    summary: String,
+    description: String,
+    keywords: Vec<String>,
+    tags: Vec<String>,
+    bookmarked: i64,
+    pinned: i64,
+    duplicate: i64,
+    accessed_count: i64,
+    added_at: String,
+    last_accessed_at: String,
+}
+fn search(query: String) -> Vec<SearchJson> {
     let index = indexer::search_index().expect("could not open search index");
     let searcher = indexer::searcher(&index);
     let default_fields: Vec<tantivy::schema::Field> = index
@@ -94,7 +109,56 @@ fn search(query: String) -> Vec<String> {
                     .or_insert_with(Vec::new)
                     .push(f.value())
             }
-            index.schema().to_json(&retrieved_doc)
+
+            SearchJson {
+                title: m
+                    .get("title").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .unwrap_or("")
+                    .to_string(),
+
+                url: m
+                    .get("url").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .unwrap_or("")
+                    .to_string(),
+                summary: m
+                    .get("summary").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .unwrap_or("")
+                    .to_string(),
+                description: m
+                    .get("description").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .unwrap_or("")
+                    .to_string(),
+                added_at: m
+                    .get("added_at").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .unwrap_or("")
+                    .to_string(),
+                last_accessed_at: m
+                    .get("last_accessed_at").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .unwrap_or("")
+                    .to_string(),
+
+                keywords: m
+                    .get("keywords").map(|t| t.iter()
+                                .map(|ff| ff.text().unwrap_or("").to_string())
+                                .collect()).unwrap_or_default(),
+
+                tags: m
+                    .get("keywords").map(|t| t.iter()
+                                .map(|ff| ff.text().unwrap_or("").to_string())
+                                .collect()).unwrap_or_default(),
+                bookmarked: m
+                    .get("bookmarked").map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                    .unwrap_or(0),
+                pinned: m
+                    .get("pinned").map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                    .unwrap_or(0),
+                duplicate: m
+                    .get("duplicate").map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                    .unwrap_or(0),
+                accessed_count: m
+                    .get("accessed_count").map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                    .unwrap_or(0),
+            }
         })
         .collect()
 }
@@ -110,12 +174,8 @@ pub struct FacetRequest {
     facet_field: Option<String>,
 }
 /// This handler uses json extractor
-async fn search_request(
-    web::Query(info): web::Query<SearchRequest>,
-) -> web::Json<serde_json::Value> {
-    let json_string = format!("{{\"results\":[{}]}}", search(info.q).join(","));
-    //println!("{}", json_string);
-    web::Json(serde_json::from_str(&json_string).expect(""))
+async fn search_request(web::Query(info): web::Query<SearchRequest>) -> web::Json<Vec<SearchJson>> {
+    web::Json(search(info.q))
 }
 
 async fn facet_request(web::Query(info): web::Query<FacetRequest>) -> web::Json<Vec<FacetCount>> {
@@ -159,12 +219,12 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::resource("/search")
                     .route(web::get().to(search_request))
-                    .route(web::head().to(|| HttpResponse::MethodNotAllowed())),
+                    .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
             .service(
                 web::resource("/facets")
                     .route(web::get().to(facet_request))
-                    .route(web::head().to(|| HttpResponse::MethodNotAllowed())),
+                    .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
             .service(web::resource("/{filename:.*}").route(web::get().to(index)))
     })
