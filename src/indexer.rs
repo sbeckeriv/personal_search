@@ -83,6 +83,40 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
         }
     }
 }
+pub fn pin_url(url: &String, pinned: i8) {
+    let index = search_index().expect("search index");
+    let searcher = searcher(&index);
+    let mut index_writer = index.writer(50_000_000).expect("writer");
+    let query_parser = QueryParser::for_index(
+        &index,
+        vec![index.schema().get_field("url").expect("domain field")],
+    );
+    let query = query_parser
+        .parse_query(&format!("\"{}\"", url))
+        .expect("query parse for domain match");
+
+    let top_docs = searcher
+        .search(&query, &TopDocs::with_limit(1))
+        .expect("search");
+
+    let mut doc = if let Some(result) = top_docs.first() {
+        let mut doc = searcher.doc(result.1).expect("doc");
+        let old_doc =
+            Term::from_field_text(index.schema().get_field("url").expect("domain field"), &url);
+        index_writer.delete_term(old_doc);
+
+        dbg!(&doc);
+        doc.add_i64(
+            index.schema().get_field("pinned").expect("pinned"),
+            pinned.into(),
+        );
+        dbg!(index.schema().get_field("pinned").expect("pinned"));
+        dbg!(pinned);
+        dbg!(&doc);
+        index_writer.add_document(doc);
+        index_writer.commit().expect("commit");
+    };
+}
 
 pub fn get_url(url: &String) -> Result<String, reqwest::Error> {
     let client = reqwest::blocking::Client::builder()

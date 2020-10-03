@@ -14,8 +14,6 @@ use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
 use yew_router::{prelude::*, route::Route, switch::Permissive, Switch};
 
 pub struct App {
-    search_results: SearchResults,
-    facet_results: FacetResults,
     navbar_items: Vec<bool>,
     link: ComponentLink<Self>,
     search_term: String,
@@ -24,6 +22,7 @@ pub struct App {
     queued_search: Option<String>,
     fetching: bool,
     network_task: Option<yew::services::fetch::FetchTask>,
+    pin_task: Option<yew::services::fetch::FetchTask>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -37,89 +36,228 @@ struct SearchJson {
     url: String,
     summary: String,
     description: String,
+    added_at: String,
+    last_accessed_at: String,
     keywords: Vec<String>,
     tags: Vec<String>,
     bookmarked: i64,
     pinned: i64,
     duplicate: i64,
     accessed_count: i64,
-    added_at: String,
-    last_accessed_at: String,
 }
-#[derive(Default)]
 pub struct SearchResults {
     search_json: Option<SearchArray>,
+    link: ComponentLink<Self>,
+    search_term: String,
+    search: String,
+    port: String,
+    queued_search: Option<String>,
+    fetching: bool,
+    network_task: Option<yew::services::fetch::FetchTask>,
+    pin_task: Option<yew::services::fetch::FetchTask>,
+}
+
+impl Component for SearchResults {
+    type Message = Msg;
+    type Properties = ();
+
+    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
+
+        SearchResults {
+            link,
+            search_json: None,
+            search_term: "".to_string(),
+            search: "".to_string(),
+            // write /read from local stoage
+            // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
+            port: "7172".to_string(),
+            queued_search: None,
+            fetching: false,
+            network_task: None,
+            pin_task: None,
+        }
+    }
+
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::Pin() => {}
+            Msg::Unpin() => {}
+            Msg::UpdatePort(string) => {
+                self.port = string;
+            }
+            Msg::Search(search_string) => {
+                self.search = search_string;
+                // remove dup?
+                if self.search.trim().len() > 0 {
+                    if self.fetching {
+                        //wonky debounce.
+                        self.queued_search = Some(self.search.clone());
+                    } else {
+                        self.fetch_search(&self.search.clone())
+                    }
+                } else {
+                    self.fetching = false;
+                    self.queued_search = None;
+                    self.network_task = None;
+                }
+            }
+            Msg::FetchReady(response) => {
+                if let Some(next) = &self.queued_search {
+                    self.fetching = false;
+                    self.network_task = None;
+                    self.fetch_search(&next.clone())
+                } else {
+                    match response.0.as_str() {
+                        "search_items" => {
+                            self.fetching = false;
+                            self.network_task = None;
+                            let results = response.1.map(|data| data).ok();
+                            // remove dup
+                            self.for_value(results);
+                        }
+                        "set_pin" => {
+                            self.pin_task = None;
+                        }
+                        _ => {}
+                    }
+                }
+
+                self.queued_search = None;
+            }
+            _ => {}
+        }
+        true
+    }
+
+    fn change(&mut self, _: Self::Properties) -> ShouldRender {
+        false
+    }
+
+    fn view(&self) -> Html {
+        html! {
+        <>
+            { self.search_results() }
+        </>
+        }
+    }
 }
 
 impl SearchResults {
-    fn for_value(results: Option<Value>) -> Self {
+    fn for_value(&mut self, results: Option<Value>) {
         match results {
-            Some(results) => SearchResults {
-                search_json: serde_json::from_value(results).ok(),
-            },
-            None => SearchResults::default(),
+            Some(results) => {
+                self.search_json = serde_json::from_value(results).ok();
+            }
+            None => {}
         }
     }
-    fn facet_item(&self, name: &str) -> Html {
-        html! {
-            <li class="collection-item hoverable"><div><a href="#!" class="secondary-content">{name}</a></div></li>
+
+    fn fetch_search(&mut self, string: &str) {
+        self.fetching = true;
+        let urlencoded: String = byte_serialize(string.as_bytes()).collect();
+        // cause "debounce" the js kills the request the server still processes them
+        self.network_task = Some(self.fetch_json(
+            false,
+            format!("http://localhost:{}/search?q={}", self.port, urlencoded),
+            "search_items".to_string(),
+        ));
+    }
+
+    fn remote_set_pin(&mut self, url: &str, pinned: i64) {
+        let urlencoded: String = byte_serialize(url.as_bytes()).collect();
+        // cause "debounce" the js kills the request the server still processes them
+        self.pin_task = Some(self.fetch_json(
+            false,
+            format!(
+                "http://localhost:{}/pinned?url={}&pinned={}",
+                self.port, urlencoded, pinned
+            ),
+            "set_pin".to_string(),
+        ));
+    }
+    fn fetch_json(
+        &mut self,
+        binary: bool,
+        url: String,
+        stored_data: String,
+    ) -> yew::services::fetch::FetchTask {
+        let callback = self
+            .link
+            .callback(move |response: Response<Json<Result<Value, Error>>>| {
+                let (meta, Json(data)) = response.into_parts();
+                if meta.status.is_success() {
+                    Msg::FetchReady((stored_data.clone(), data))
+                } else {
+                    Msg::Ignore // FIXME: Handle this error accordingly.
+                }
+            });
+        let mut request = Request::get(url)
+            .header("Accept", "application/json")
+            .body(Nothing)
+            .unwrap();
+        if binary {
+            FetchService::fetch_binary(request, callback).unwrap()
+        } else {
+            FetchService::fetch(request, callback).unwrap()
         }
     }
+
+    fn loading_html(&self) -> Html {
+        if self.fetching {
+            html! {
+              <div class="progress">
+                  <div class="indeterminate"></div>
+              </div>
+            }
+        } else {
+            html! {<></>}
+        }
+    }
+
     fn search_item_html(&self, obj: &SearchJson) -> Html {
-        let title = obj
-            .title
-            .get(0)
-            .and_then(|s| Some(s.as_str()))
-            .unwrap_or("");
-
-        let url = obj.url.get(0).and_then(|s| Some(s.as_str())).unwrap_or("");
-
-        let description = obj
-            .description
-            .get(0)
-            .and_then(|s| Some(s.as_str()))
-            .unwrap_or("");
-
-        let summary = obj
-            .summary
-            .get(0)
-            .and_then(|s| Some(s.as_str()))
-            .unwrap_or("");
-
-        let pinned = obj.pinned.get(0).unwrap_or(&0);
-        let bookmarked = obj.bookmarked.get(0).unwrap_or(&0);
-
         html! {
           <li class="collection-item avatar">
-            <span class="title"><a href=url target="_blank">{title}{" "}{url}</a></span>
-            <p> {description} <br/>
-            {summary}
+            <span class="title"><a href=obj.url.clone() target="_blank">{&obj.title}{" "}{&obj.url}</a></span>
+            <p> {&obj.description} <br/>
+            {&obj.summary}
             <br/>
-            { obj.keywords.as_ref().unwrap_or(&vec![]).iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
+            { obj.keywords.iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
             </p>
 
-            { self.pinned(pinned)}
-            { self.bookmarked(bookmarked)}
+            { self.pinned(&obj.pinned, obj.url.clone()) }
+            { self.bookmarked(&obj.bookmarked) }
           </li>
         }
     }
 
-    fn pinned(&self, marked: &i8) -> Html {
+    fn pinned(&self, marked: &i64, url: String) -> Html {
         if marked == &1 {
             html! {
-            <a href="#!" class="secondary-content tooltipped search-pinned" data-position="bottom" data-tooltip="Pinned">
+            <a href="#!" class="secondary-content tooltipped search-pinned"
+                data-position="bottom"
+                data-url=url
+                data-tooltip="Pinned"
+                onclick=self.link.callback(|e| Msg::Unpin())
+                >
                 <i class="material-icons">{"star"}</i>
             </a>
             }
         } else {
             html! {
-                <a href="#!" class="secondary-content tooltipped search-pinned"  data-position="bottom" data-tooltip="Pinned">
+                <a href="#!" class="secondary-content tooltipped search-pinned"
+                    data-position="bottom"
+                    data-tooltip="Pinned"
+                    data-url=url
+                    onclick=self.link.callback(|e| Msg::Pin())
+                   >
                     <i class="material-icons">{"star_border"}</i>
                 </a>
             }
         }
     }
-    fn bookmarked(&self, marked: &i8) -> Html {
+
+    fn bookmarked(&self, marked: &i64) -> Html {
         if marked == &1 {
             html! {
             <a href="#!" class="secondary-content tooltipped search-bookmarked" data-position="bottom" data-tooltip="Bookmark">
@@ -168,6 +306,17 @@ impl SearchResults {
             }
         }
     }
+
+    fn set_pin(&mut self, url: &str, pinned: i64) {
+        // find and set value.
+        if let Some(json) = &mut self.search_json {
+            //for &mut result in json.results {
+            //   if result.url == url {
+            //      result.pinned = pinned;
+            //   }
+            // }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -208,13 +357,17 @@ impl FacetResults {
             <div class="col s1">
               <ul class="collection blue-grey with-header">
                 <li class="collection-header"><h6>{header}</h6></li>
-                    //{{list.iter().map(|i| self.facet_item(&i)).collect::<Html>()}}
+                    //{{json.iter().map(|i| self.facet_item(&i)).collect::<Html>()}}
               </ul>
             </div>
               }
         } else {
             html! {
-                <></>
+            <div class="col s1">
+              <ul class="collection blue-grey with-header">
+                <li class="collection-header"><h6>{header}</h6></li>
+              </ul>
+            </div>
             }
         }
     }
@@ -289,12 +442,9 @@ impl App {
         html! {
         <>
         <div class="row">
-        {self.facet_results.facets("Keywords")}
-        <div class="col s11">
-        {self.loading_html()}
-        {self.search_results.search_results()}
-
-        </div>
+            <div class="col s11">
+                <SearchResults/>
+            </div>
         </div>
         </>
         }
@@ -333,6 +483,19 @@ impl App {
             "search_items".to_string(),
         ));
     }
+
+    fn remote_set_pin(&mut self, url: &str, pinned: i64) {
+        let urlencoded: String = byte_serialize(url.as_bytes()).collect();
+        // cause "debounce" the js kills the request the server still processes them
+        self.pin_task = Some(self.fetch_json(
+            false,
+            format!(
+                "http://localhost:{}/pinned?url={}&pinned={}",
+                self.port, urlencoded, pinned
+            ),
+            "set_pin".to_string(),
+        ));
+    }
 }
 
 #[derive(Switch, Debug, Clone)]
@@ -347,6 +510,8 @@ pub enum AppRouter {
 
 pub enum Msg {
     Search(String),
+    Pin(),
+    Unpin(),
     UpdatePort(String),
     SearchTerms(String),
     Hide(String),
@@ -369,23 +534,23 @@ impl Component for App {
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
-            search_results: SearchResults::default(),
-            facet_results: FacetResults::default(),
             queued_search: None,
             fetching: false,
             network_task: None,
+            pin_task: None,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
+            Msg::Pin() => {}
+            Msg::Unpin() => {}
             Msg::UpdatePort(string) => {
                 self.port = string;
             }
             Msg::Search(search_string) => {
                 self.search = search_string;
                 // remove dup?
-                self.search_results = SearchResults::default();
                 if self.search.trim().len() > 0 {
                     if self.fetching {
                         //wonky debounce.
@@ -400,16 +565,20 @@ impl Component for App {
                 }
             }
             Msg::FetchReady(response) => {
-                self.fetching = false;
-                self.network_task = None;
                 if let Some(next) = &self.queued_search {
+                    self.fetching = false;
+                    self.network_task = None;
                     self.fetch_search(&next.clone())
                 } else {
                     match response.0.as_str() {
                         "search_items" => {
+                            self.fetching = false;
+                            self.network_task = None;
                             let results = response.1.map(|data| data).ok();
                             // remove dup
-                            self.search_results = SearchResults::for_value(results);
+                        }
+                        "set_pin" => {
+                            self.pin_task = None;
                         }
                         _ => {}
                     }

@@ -8,7 +8,7 @@ use futures::StreamExt;
 use personal_search::indexer;
 use serde::{Deserialize, Serialize};
 
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::FacetCollector;
@@ -16,7 +16,6 @@ use tantivy::collector::TopDocs;
 use tantivy::doc;
 use tantivy::query::AllQuery;
 use tantivy::query::QueryParser;
-
 
 #[derive(StructOpt, Debug)]
 pub struct Opt {
@@ -30,11 +29,17 @@ pub struct Opt {
     #[structopt(parse(from_os_str))]
     search_folder_path: Option<PathBuf>,
 }
+
+fn pin(url: String, pin: i8) {
+    indexer::pin_url(&url, pin);
+}
+
 #[derive(Serialize)]
 struct FacetCount {
     name: String,
     count: u64,
 }
+
 fn facets(query: String, field: String) -> Vec<FacetCount> {
     let query = if query.starts_with('/') {
         query
@@ -112,51 +117,69 @@ fn search(query: String) -> Vec<SearchJson> {
 
             SearchJson {
                 title: m
-                    .get("title").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .get("title")
+                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
                     .unwrap_or("")
                     .to_string(),
 
                 url: m
-                    .get("url").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .get("url")
+                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
                     .unwrap_or("")
                     .to_string(),
                 summary: m
-                    .get("summary").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .get("summary")
+                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
                     .unwrap_or("")
                     .to_string(),
                 description: m
-                    .get("description").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .get("description")
+                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
                     .unwrap_or("")
                     .to_string(),
                 added_at: m
-                    .get("added_at").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .get("added_at")
+                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
                     .unwrap_or("")
                     .to_string(),
                 last_accessed_at: m
-                    .get("last_accessed_at").map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                    .get("last_accessed_at")
+                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
                     .unwrap_or("")
                     .to_string(),
 
                 keywords: m
-                    .get("keywords").map(|t| t.iter()
-                                .map(|ff| ff.text().unwrap_or("").to_string())
-                                .collect()).unwrap_or_default(),
+                    .get("keywords")
+                    .map(|t| {
+                        t.iter()
+                            .map(|ff| ff.text().unwrap_or("").to_string())
+                            .collect()
+                    })
+                    .unwrap_or_default(),
 
                 tags: m
-                    .get("keywords").map(|t| t.iter()
-                                .map(|ff| ff.text().unwrap_or("").to_string())
-                                .collect()).unwrap_or_default(),
+                    .get("keywords")
+                    .map(|t| {
+                        t.iter()
+                            .map(|ff| ff.text().unwrap_or("").to_string())
+                            .collect()
+                    })
+                    .unwrap_or_default(),
                 bookmarked: m
-                    .get("bookmarked").map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                    .get("bookmarked")
+                    .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
                     .unwrap_or(0),
                 pinned: m
-                    .get("pinned").map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                    .get("pinned")
+                    .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
                     .unwrap_or(0),
                 duplicate: m
-                    .get("duplicate").map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                    .get("duplicate")
+                    .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
                     .unwrap_or(0),
                 accessed_count: m
-                    .get("accessed_count").map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                    .get("accessed_count")
+                    .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
                     .unwrap_or(0),
             }
         })
@@ -168,14 +191,29 @@ pub struct SearchRequest {
     q: String,
 }
 
+/// This handler uses json extractor
+async fn search_request(
+    web::Query(info): web::Query<SearchRequest>,
+) -> web::Json<HashMap<String, Vec<SearchJson>>> {
+    let mut m = HashMap::new();
+    m.insert("results".to_string(), search(info.q));
+    web::Json(m)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PinRequest {
+    url: String,
+    pinned: i8,
+}
+async fn pin_request(web::Query(info): web::Query<PinRequest>) -> web::Json<Vec<FacetCount>> {
+    pin(info.url, info.pinned);
+    web::Json(vec![])
+}
+
 #[derive(Debug, Deserialize)]
 pub struct FacetRequest {
     facet: String,
     facet_field: Option<String>,
-}
-/// This handler uses json extractor
-async fn search_request(web::Query(info): web::Query<SearchRequest>) -> web::Json<Vec<SearchJson>> {
-    web::Json(search(info.q))
 }
 
 async fn facet_request(web::Query(info): web::Query<FacetRequest>) -> web::Json<Vec<FacetCount>> {
@@ -219,6 +257,12 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::resource("/search")
                     .route(web::get().to(search_request))
+                    .route(web::head().to(HttpResponse::MethodNotAllowed)),
+            )
+            .service(
+                //yes i know it should be a post i dont care
+                web::resource("/pinned")
+                    .route(web::get().to(pin_request))
                     .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
             .service(

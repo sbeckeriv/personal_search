@@ -27,7 +27,7 @@ pub struct Opt {
 use tantivy::collector::FacetCollector;
 
 use tantivy::query::AllQuery;
-use tantivy::schema::{Facet};
+use tantivy::schema::Facet;
 fn facets(index: tantivy::Index, field: &str, facet: &str) {
     let searcher = indexer::searcher(&index);
     let tags = index
@@ -90,15 +90,21 @@ fn search(query: String, index: tantivy::Index) {
             .get("summary")
             .and_then(|r| r.first().unwrap().value().text())
             .unwrap_or("");
+
+        let pinned = m
+            .get("pinned")
+            .and_then(|r| Some(r.first().unwrap().value().i64_value()))
+            .unwrap_or(0);
         println!(
-            "{score}: {title} - {url}\n{summary}\n",
+            "{score}: {title} - {url}\n{summary}\n{pinned}",
             score = score,
             title = title,
             url = url,
             summary = summary,
+            pinned = pinned
         );
-        //let json = index.schema().to_json(&retrieved_doc);
-        //println!("{}:\n{}", score, json);
+        let json = index.schema().to_json(&retrieved_doc);
+        println!("{}:\n{}", score, json);
     }
 }
 
