@@ -90,14 +90,10 @@ impl Component for SearchResults {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Pin(string) => {
-                self.network_task = Some(self.fetch_json(
-                    false,
-                    format!("http://localhost:{}/search?q={}", self.port, string),
-                    "search_items".to_string(),
-                ));
-            }
-            Msg::Unpin(_string) => {}
+            Msg::Pin(string) => self.remote_set_attribute(&string, &"pinned", 1),
+            Msg::Unpin(string) => self.remote_set_attribute(&string, &"pinned", 0),
+            Msg::Hide(string) => self.remote_set_attribute(&string, &"hide", 1),
+            Msg::HideDomain(string) => self.remote_set_attribute(&string, &"hide_domain", 1),
             Msg::UpdatePort(string) => {
                 self.port = string;
             }
@@ -176,16 +172,16 @@ impl SearchResults {
         ));
     }
 
-    fn remote_set_pin(&mut self, url: &str, pinned: i64) {
+    fn remote_set_attribute(&mut self, url: &str, field: &str, value: i64) {
         let urlencoded: String = byte_serialize(url.as_bytes()).collect();
         // cause "debounce" the js kills the request the server still processes them
         self.pin_task = Some(self.fetch_json(
             false,
             format!(
-                "http://localhost:{}/pinned?url={}&pinned={}",
-                self.port, urlencoded, pinned
+                "http://localhost:{}/attrbiute?url={}&field={}&pinned={}",
+                self.port, urlencoded, field, value
             ),
-            "set_pin".to_string(),
+            format!("set_{}", field),
         ));
     }
     fn fetch_json(

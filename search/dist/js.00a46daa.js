@@ -1372,12 +1372,12 @@ __exports.__wbindgen_throw = function(arg0, arg1) {
 };
 
 __exports.__wbindgen_closure_wrapper445 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 162, __wbg_adapter_22);
+    var ret = makeMutClosure(arg0, arg1, 160, __wbg_adapter_22);
     return addHeapObject(ret);
 };
 
 __exports.__wbindgen_closure_wrapper591 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 231, __wbg_adapter_25);
+    var ret = makeMutClosure(arg0, arg1, 229, __wbg_adapter_25);
     return addHeapObject(ret);
 };
 

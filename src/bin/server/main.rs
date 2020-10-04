@@ -30,8 +30,8 @@ pub struct Opt {
     search_folder_path: Option<PathBuf>,
 }
 
-fn pin(url: String, pin: i8) {
-    indexer::pin_url(&url, pin);
+fn set_attribute(url: String, field: String, value: i8) {
+    //indexer::pin_url(&url, pin);
 }
 
 #[derive(Serialize)]
@@ -201,12 +201,15 @@ async fn search_request(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct PinRequest {
+pub struct AttributeRequest {
     url: String,
-    pinned: i8,
+    field: String,
+    value: i8,
 }
-async fn pin_request(web::Query(info): web::Query<PinRequest>) -> web::Json<Vec<FacetCount>> {
-    pin(info.url, info.pinned);
+async fn attribute_request(
+    web::Query(info): web::Query<AttributeRequest>,
+) -> web::Json<Vec<FacetCount>> {
+    set_attribute(info.url, info.field, info.value);
     web::Json(vec![])
 }
 
@@ -261,8 +264,8 @@ async fn main() -> std::io::Result<()> {
             )
             .service(
                 //yes i know it should be a post i dont care
-                web::resource("/pinned")
-                    .route(web::get().to(pin_request))
+                web::resource("/attributes")
+                    .route(web::get().to(attribute_request))
                     .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
             .service(
