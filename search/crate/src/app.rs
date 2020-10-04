@@ -1,11 +1,9 @@
-
 use anyhow::Error;
 
 use serde_derive::{Deserialize, Serialize};
 
-
 use serde_json::Value;
-use url::form_urlencoded::{byte_serialize};
+use url::form_urlencoded::byte_serialize;
 
 use yew::format::{Json, Nothing};
 use yew::prelude::*;
@@ -14,15 +12,12 @@ use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
 use yew_router::{switch::Permissive, Switch};
 
 pub struct App {
-    navbar_items: Vec<bool>,
     link: ComponentLink<Self>,
-    search_term: String,
     search: String,
     port: String,
-    queued_search: Option<String>,
+
     fetching: bool,
     network_task: Option<yew::services::fetch::FetchTask>,
-    pin_task: Option<yew::services::fetch::FetchTask>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -49,7 +44,6 @@ struct SearchJson {
 pub struct SearchResults {
     search_json: Option<SearchArray>,
     link: ComponentLink<Self>,
-    search_term: String,
     search: String,
     port: String,
     queued_search: Option<String>,
@@ -60,7 +54,7 @@ pub struct SearchResults {
 }
 #[derive(Properties, Clone, PartialEq, Debug)]
 pub struct SearchProps {
-    search_term: String,
+    search_input: String,
 }
 impl Component for SearchResults {
     type Message = Msg;
@@ -72,7 +66,6 @@ impl Component for SearchResults {
         SearchResults {
             link,
             search_json: None,
-            search_term: "".to_string(),
             search: "".to_string(),
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
@@ -87,7 +80,7 @@ impl Component for SearchResults {
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         ConsoleService::log(&format!("p{:?}", props));
         if self.props != props {
-            self.update(Msg::Search(props.search_term.clone()));
+            self.update(Msg::Search(props.search_input.clone()));
             self.props = props;
             true
         } else {
@@ -314,7 +307,9 @@ impl SearchResults {
     }
 
     fn search_results(&self) -> Html {
-        if let Some(json) = &self.search_json {
+        if self.fetching {
+            self.loading_html()
+        } else if let Some(json) = &self.search_json {
             html! {
             <ul class="collection">
                 { json.results.iter().map(|i|{ self.search_item_html(&i) }).collect::<Html>() }
@@ -463,7 +458,7 @@ impl App {
         <>
         <div class="row">
             <div class="col s11">
-                <SearchResults search_term=self.search.clone()/>
+                <SearchResults search_input=self.search.clone()/>
             </div>
         </div>
         </>
@@ -491,30 +486,6 @@ impl App {
 
         </>
                     }
-    }
-
-    fn fetch_search(&mut self, string: &str) {
-        self.fetching = true;
-        let urlencoded: String = byte_serialize(string.as_bytes()).collect();
-        // cause "debounce" the js kills the request the server still processes them
-        self.network_task = Some(self.fetch_json(
-            false,
-            format!("http://localhost:{}/search?q={}", self.port, urlencoded),
-            "search_items".to_string(),
-        ));
-    }
-
-    fn remote_set_pin(&mut self, url: &str, pinned: i64) {
-        let urlencoded: String = byte_serialize(url.as_bytes()).collect();
-        // cause "debounce" the js kills the request the server still processes them
-        self.pin_task = Some(self.fetch_json(
-            false,
-            format!(
-                "http://localhost:{}/pinned?url={}&pinned={}",
-                self.port, urlencoded, pinned
-            ),
-            "set_pin".to_string(),
-        ));
     }
 }
 
@@ -548,16 +519,12 @@ impl Component for App {
         let _empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
         App {
             link,
-            navbar_items: vec![true, false],
-            search_term: "".to_string(),
             search: "".to_string(),
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
-            queued_search: None,
             fetching: false,
             network_task: None,
-            pin_task: None,
         }
     }
 
@@ -570,27 +537,8 @@ impl Component for App {
                 self.search = search_string;
             }
             Msg::FetchReady(response) => {
-                if let Some(next) = &self.queued_search {
-                    self.fetching = false;
-                    self.network_task = None;
-                    self.fetch_search(&next.clone())
-                } else {
-                    match response.0.as_str() {
-                        "search_items" => {
-                            self.fetching = false;
-                            self.network_task = None;
-                            let results = response.1.ok();
-                            ConsoleService::log(&format!("22{:?}", results));
-                            // remove dup
-                        }
-                        "set_pin" => {
-                            self.pin_task = None;
-                        }
-                        _ => {}
-                    }
-                }
-
-                self.queued_search = None;
+                self.fetching = false;
+                self.network_task = None;
             }
             _ => {}
         }
