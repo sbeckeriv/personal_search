@@ -45,6 +45,7 @@ struct SearchJson {
     duplicate: i64,
     accessed_count: i64,
 }
+
 pub struct SearchResults {
     search_json: Option<SearchArray>,
     link: ComponentLink<Self>,
@@ -53,15 +54,19 @@ pub struct SearchResults {
     port: String,
     queued_search: Option<String>,
     fetching: bool,
+    props: SearchProps,
     network_task: Option<yew::services::fetch::FetchTask>,
     pin_task: Option<yew::services::fetch::FetchTask>,
 }
-
+#[derive(Properties, Clone, PartialEq, Debug)]
+pub struct SearchProps {
+    search_term: String,
+}
 impl Component for SearchResults {
     type Message = Msg;
-    type Properties = ();
+    type Properties = SearchProps;
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
 
         SearchResults {
@@ -76,13 +81,30 @@ impl Component for SearchResults {
             fetching: false,
             network_task: None,
             pin_task: None,
+            props: props,
+        }
+    }
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        ConsoleService::log(&format!("p{:?}", props));
+        if self.props != props {
+            self.update(Msg::Search(props.search_term.clone()));
+            self.props = props;
+            true
+        } else {
+            false
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Pin() => {}
-            Msg::Unpin() => {}
+            Msg::Pin(string) => {
+                self.network_task = Some(self.fetch_json(
+                    false,
+                    format!("http://localhost:{}/search?q={}", self.port, string),
+                    "search_items".to_string(),
+                ));
+            }
+            Msg::Unpin(string) => {}
             Msg::UpdatePort(string) => {
                 self.port = string;
             }
@@ -113,6 +135,7 @@ impl Component for SearchResults {
                             self.fetching = false;
                             self.network_task = None;
                             let results = response.1.map(|data| data).ok();
+                            ConsoleService::log(&format!("{:?}", results));
                             // remove dup
                             self.for_value(results);
                         }
@@ -128,10 +151,6 @@ impl Component for SearchResults {
             _ => {}
         }
         true
-    }
-
-    fn change(&mut self, _: Self::Properties) -> ShouldRender {
-        false
     }
 
     fn view(&self) -> Html {
@@ -232,13 +251,14 @@ impl SearchResults {
     }
 
     fn pinned(&self, marked: &i64, url: String) -> Html {
+        let url_pin = url.clone();
         if marked == &1 {
             html! {
             <a href="#!" class="secondary-content tooltipped search-pinned"
                 data-position="bottom"
                 data-url=url
                 data-tooltip="Pinned"
-                onclick=self.link.callback(|e| Msg::Unpin())
+                onclick=self.link.callback(move |e| Msg::Unpin(url_pin.clone()))
                 >
                 <i class="material-icons">{"star"}</i>
             </a>
@@ -249,7 +269,7 @@ impl SearchResults {
                     data-position="bottom"
                     data-tooltip="Pinned"
                     data-url=url
-                    onclick=self.link.callback(|e| Msg::Pin())
+                    onclick=self.link.callback(move |e| Msg::Pin(url_pin.clone()))
                    >
                     <i class="material-icons">{"star_border"}</i>
                 </a>
@@ -443,7 +463,7 @@ impl App {
         <>
         <div class="row">
             <div class="col s11">
-                <SearchResults/>
+                <SearchResults search_term=self.search.clone()/>
             </div>
         </div>
         </>
@@ -510,8 +530,8 @@ pub enum AppRouter {
 
 pub enum Msg {
     Search(String),
-    Pin(),
-    Unpin(),
+    Pin(String),
+    Unpin(String),
     UpdatePort(String),
     SearchTerms(String),
     Hide(String),
@@ -543,26 +563,11 @@ impl Component for App {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Pin() => {}
-            Msg::Unpin() => {}
             Msg::UpdatePort(string) => {
                 self.port = string;
             }
             Msg::Search(search_string) => {
                 self.search = search_string;
-                // remove dup?
-                if self.search.trim().len() > 0 {
-                    if self.fetching {
-                        //wonky debounce.
-                        self.queued_search = Some(self.search.clone());
-                    } else {
-                        self.fetch_search(&self.search.clone())
-                    }
-                } else {
-                    self.fetching = false;
-                    self.queued_search = None;
-                    self.network_task = None;
-                }
             }
             Msg::FetchReady(response) => {
                 if let Some(next) = &self.queued_search {
@@ -575,6 +580,7 @@ impl Component for App {
                             self.fetching = false;
                             self.network_task = None;
                             let results = response.1.map(|data| data).ok();
+                            ConsoleService::log(&format!("22{:?}", results));
                             // remove dup
                         }
                         "set_pin" => {
