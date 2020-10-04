@@ -92,8 +92,7 @@ fn search(query: String, index: tantivy::Index) {
             .unwrap_or("");
 
         let pinned = m
-            .get("pinned")
-            .and_then(|r| Some(r.first().unwrap().value().i64_value()))
+            .get("pinned").map(|r| r.first().unwrap().value().i64_value())
             .unwrap_or(0);
         println!(
             "{score}: {title} - {url}\n{summary}\n{pinned}",

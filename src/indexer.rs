@@ -99,7 +99,7 @@ pub fn pin_url(url: &String, pinned: i8) {
         .search(&query, &TopDocs::with_limit(1))
         .expect("search");
 
-    let mut doc = if let Some(result) = top_docs.first() {
+    let _doc = if let Some(result) = top_docs.first() {
         let mut doc = searcher.doc(result.1).expect("doc");
         let old_doc =
             Term::from_field_text(index.schema().get_field("url").expect("domain field"), &url);

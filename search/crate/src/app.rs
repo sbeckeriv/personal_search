@@ -1,17 +1,17 @@
-use crate::pages::{About, Home};
+
 use anyhow::Error;
-use serde::ser;
+
 use serde_derive::{Deserialize, Serialize};
-use serde_json;
-use serde_json::json;
+
+
 use serde_json::Value;
-use url::form_urlencoded::{byte_serialize, parse};
-use yew::callback::Callback;
-use yew::format::{Format, Json, Nothing};
+use url::form_urlencoded::{byte_serialize};
+
+use yew::format::{Json, Nothing};
 use yew::prelude::*;
 use yew::services::console::ConsoleService;
 use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
-use yew_router::{prelude::*, route::Route, switch::Permissive, Switch};
+use yew_router::{switch::Permissive, Switch};
 
 pub struct App {
     navbar_items: Vec<bool>,
@@ -67,7 +67,7 @@ impl Component for SearchResults {
     type Properties = SearchProps;
 
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
+        let _empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
 
         SearchResults {
             link,
@@ -81,7 +81,7 @@ impl Component for SearchResults {
             fetching: false,
             network_task: None,
             pin_task: None,
-            props: props,
+            props,
         }
     }
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
@@ -104,14 +104,14 @@ impl Component for SearchResults {
                     "search_items".to_string(),
                 ));
             }
-            Msg::Unpin(string) => {}
+            Msg::Unpin(_string) => {}
             Msg::UpdatePort(string) => {
                 self.port = string;
             }
             Msg::Search(search_string) => {
                 self.search = search_string;
                 // remove dup?
-                if self.search.trim().len() > 0 {
+                if !self.search.trim().is_empty() {
                     if self.fetching {
                         //wonky debounce.
                         self.queued_search = Some(self.search.clone());
@@ -134,7 +134,7 @@ impl Component for SearchResults {
                         "search_items" => {
                             self.fetching = false;
                             self.network_task = None;
-                            let results = response.1.map(|data| data).ok();
+                            let results = response.1.ok();
                             ConsoleService::log(&format!("{:?}", results));
                             // remove dup
                             self.for_value(results);
@@ -211,7 +211,7 @@ impl SearchResults {
                     Msg::Ignore // FIXME: Handle this error accordingly.
                 }
             });
-        let mut request = Request::get(url)
+        let request = Request::get(url)
             .header("Accept", "application/json")
             .body(Nothing)
             .unwrap();
@@ -295,7 +295,7 @@ impl SearchResults {
 
     fn chip(&self, string: &str) -> Html {
         let string = string.trim();
-        let string = if string.starts_with("/") {
+        let string = if string.starts_with('/') {
             let mut chars = string.chars();
             chars.next();
             chars.as_str()
@@ -327,9 +327,9 @@ impl SearchResults {
         }
     }
 
-    fn set_pin(&mut self, url: &str, pinned: i64) {
+    fn set_pin(&mut self, _url: &str, _pinned: i64) {
         // find and set value.
-        if let Some(json) = &mut self.search_json {
+        if let Some(_json) = &mut self.search_json {
             //for &mut result in json.results {
             //   if result.url == url {
             //      result.pinned = pinned;
@@ -372,7 +372,7 @@ impl FacetResults {
     }
 
     fn facets(&self, header: &str) -> Html {
-        if let Some(json) = &self.facet_json {
+        if let Some(_json) = &self.facet_json {
             html! {
             <div class="col s1">
               <ul class="collection blue-grey with-header">
@@ -414,7 +414,7 @@ impl App {
                     Msg::Ignore // FIXME: Handle this error accordingly.
                 }
             });
-        let mut request = Request::get(url)
+        let request = Request::get(url)
             .header("Accept", "application/json")
             .body(Nothing)
             .unwrap();
@@ -457,7 +457,7 @@ impl App {
               }
     }
     fn content(&self) -> Html {
-        let mut tags: Vec<&str> = vec![];
+        let _tags: Vec<&str> = vec![];
 
         html! {
         <>
@@ -545,7 +545,7 @@ impl Component for App {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
+        let _empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
         App {
             link,
             navbar_items: vec![true, false],
@@ -579,7 +579,7 @@ impl Component for App {
                         "search_items" => {
                             self.fetching = false;
                             self.network_task = None;
-                            let results = response.1.map(|data| data).ok();
+                            let results = response.1.ok();
                             ConsoleService::log(&format!("22{:?}", results));
                             // remove dup
                         }
