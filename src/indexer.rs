@@ -1,12 +1,15 @@
+use brotli;
 use chrono::prelude::*;
-
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
-
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
 use select::document;
 use std::collections::HashSet;
+use std::convert::TryInto;
 use std::fs;
+use std::fs::File;
+use std::io::Read;
+use std::io::{BufRead, BufReader, Error, Write};
 use std::panic;
 use std::path::Path;
 use std::time::Duration;
@@ -15,22 +18,39 @@ use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
-fn directory(
-    system_path: &str,
-) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError> {
+
+fn create_directory(system_path: &str) {
     let index_path = Path::new(system_path);
     if !index_path.is_dir() {
         fs::create_dir(index_path).expect("could not make index dir");
+        fs::create_dir(index_path.join("source")).expect("could not make index dir");
+        fs::create_dir(index_path.join("index")).expect("could not make index dir");
+        fs::create_dir(index_path.join("hashes")).expect("could not make index dir");
     }
-
-    tantivy::directory::MmapDirectory::open(index_path)
 }
 
-pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
+fn index_directory(
+    system_path: &str,
+) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError> {
+    create_directory(system_path);
+    let index_path = Path::new(system_path);
+
+    tantivy::directory::MmapDirectory::open(index_path.join("index"))
+}
+
+fn hash_directory(
+    system_path: &str,
+) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError> {
+    create_directory(system_path);
+    let index_path = Path::new(system_path);
+
+    tantivy::directory::MmapDirectory::open(index_path.join("hashes"))
+}
+
+pub fn hash_index(system_path: &str) -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
     // dont keep its own index? we are writing the domain and duplicate urls to prevent them
     // from reloading. just use that?
-    let system_path = ".private_search_hashes";
-    let directory = directory(&system_path);
+    let directory = hash_directory(&system_path);
 
     let mut schema_builder = Schema::builder();
     schema_builder.add_text_field("domain", TEXT | STORED);
@@ -50,26 +70,26 @@ pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError
 }
 pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
     let system_path = ".private_search";
-    let directory = directory(&system_path);
+    let directory = index_directory(&system_path);
 
     let mut schema_builder = Schema::builder();
+
+    schema_builder.add_text_field("id", TEXT | STORED);
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("url", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
     schema_builder.add_text_field("domain", TEXT | STORED);
     schema_builder.add_text_field("context", TEXT);
-    schema_builder.add_text_field("summary", TEXT | STORED);
-    schema_builder.add_text_field("description", TEXT | STORED);
+    schema_builder.add_text_field("summary", STORED);
+    schema_builder.add_text_field("description", STORED);
     schema_builder.add_i64_field("bookmarked", STORED | INDEXED);
     schema_builder.add_i64_field("duplicate", STORED | INDEXED);
-    schema_builder.add_u64_field("content_hash", STORED | INDEXED);
+    schema_builder.add_i64_field("content_hash", STORED | INDEXED);
     schema_builder.add_i64_field("pinned", STORED | INDEXED);
     schema_builder.add_i64_field("accessed_count", STORED);
-    schema_builder.add_facet_field("outlinks");
-    schema_builder.add_facet_field("tags");
-    schema_builder.add_facet_field("keywords");
     schema_builder.add_date_field("added_at", STORED);
     schema_builder.add_date_field("last_accessed_at", STORED | INDEXED);
+    schema_builder.add_facet_field("tags");
 
     let schema = schema_builder.build();
     match directory {
@@ -83,6 +103,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
         }
     }
 }
+// doesnt work. updates need a full rewrite.
 pub fn pin_url(url: &String, pinned: i8) {
     let index = search_index().expect("search index");
     let searcher = searcher(&index);
@@ -178,19 +199,21 @@ pub fn url_skip(url: &String) -> bool {
         ignore_includes.iter().any(|s| url.contains(s))
     }
 }
-fn domain_hash(domain: &str) -> String {
+
+fn md5_hash(domain: &str) -> String {
     let digest = md5::compute(domain.as_bytes());
     format!("{:x}", digest)
 }
 pub fn add_hash(domain: &str, hash: u64) {
-    let index = hash_index().expect("hash index");
+    let system_path = ".private_search";
+    let index = hash_index(system_path).expect("hash index");
     let searcher = searcher(&index);
     let mut index_writer = index.writer(50_000_000).expect("writer");
     let query_parser = QueryParser::for_index(
         &index,
         vec![index.schema().get_field("domain").expect("domain field")],
     );
-    let domain_hash = domain_hash(&domain);
+    let domain_hash = md5_hash(&domain);
     let query = query_parser
         .parse_query(&format!("\"{}\"", &domain_hash))
         .expect("query parse for domain match");
@@ -301,12 +324,12 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                         sim_hash.get_sim_hash(ShingleIterator::new(2, body.split(' ').collect()));
                     let dup = duplicate(&parsed.domain().unwrap().to_string(), &content_hash);
 
-                    doc.add_u64(
+                    doc.add_i64(
                         index
                             .schema()
                             .get_field("content_hash")
                             .expect("content_hash"),
-                        content_hash,
+                        content_hash.try_into().unwrap_or(0),
                     );
                     add_hash(&parsed.domain().expect("domain"), content_hash);
 
@@ -357,12 +380,6 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     .filter_map(|n| n.attr("href"))
                     .map(str::to_string)
                     .collect::<HashSet<String>>();
-                for url in found_urls {
-                    doc.add_facet(
-                        index.schema().get_field("outlinks").expect("outlinks"),
-                        Facet::from(&format!("/#{}", url.replacen("/", "?", 10000))),
-                    );
-                }
 
                 let keywords = document
                     .find(select::predicate::Name("meta"))
@@ -374,14 +391,14 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
 
                 for keyword in keywords {
                     doc.add_facet(
-                        index.schema().get_field("keywords").expect("keywords"),
-                        Facet::from(&format!("/{}", keyword)),
+                        index.schema().get_field("tags").expect("tags"),
+                        Facet::from(&format!("/keywords/{}", keyword.trim())),
                     );
                 }
                 for keyword in meta.keywords.unwrap_or_default() {
                     doc.add_facet(
-                        index.schema().get_field("keywords").expect("keywords"),
-                        Facet::from(&format!("/{}", keyword)),
+                        index.schema().get_field("tags").expect("tags"),
+                        Facet::from(&format!("/keywords/{}", keyword)),
                     );
                 }
 
@@ -411,6 +428,9 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
                     0,
                 );
 
+                doc.add_text(index.schema().get_field("id").expect("id"), &md5_hash(&url));
+                let json = index.schema().to_json(&doc);
+                write_source(md5_hash(&url), json);
                 let mut index_writer = index.writer(50_000_000).expect("writer");
                 index_writer.add_document(doc);
                 index_writer.commit().expect("commit");
@@ -424,16 +444,40 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
         }
     };
 }
+pub fn write_source(url_hash: String, json: String) {
+    let system_path = ".private_search";
+    let index_path = Path::new(system_path);
+    let source_path = index_path.join("source");
+    let mut output =
+        File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
+    let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
+    writer.write_all(json.as_bytes());
+    //output.write_all(json.as_bytes()).expect("write");
+}
+pub fn read_source(url_hash: String) -> String {
+    let system_path = ".private_search";
+    let index_path = Path::new(system_path);
+    let source_path = index_path.join("source");
+    let mut input =
+        File::open(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
 
+    let mut reader = brotli::Decompressor::new(
+        input, 4096, // buffer size
+    );
+    let mut json = String::new();
+    reader.read_to_string(&mut json);
+    json
+}
 pub fn duplicate(domain: &String, content_hash: &u64) -> bool {
-    let index = hash_index().expect("hash index");
+    let system_path = ".private_search";
+    let index = hash_index(system_path).expect("hash index");
     let searcher = searcher(&index);
     let query_parser = QueryParser::for_index(
         &index,
         vec![index.schema().get_field("domain").expect("domain field")],
     );
 
-    let domain_hash = domain_hash(&domain);
+    let domain_hash = md5_hash(&domain);
     let query = query_parser
         .parse_query(&format!("\"!{}\"", domain_hash))
         .expect("query parse for domain match");

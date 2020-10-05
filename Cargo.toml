@@ -17,6 +17,7 @@ chrono = "*"
 lazy_static = "*"
 toml = "*"
 structopt = "*"
+brotli = "*"
 
 probabilistic-collections = { version = "*", features = ["serde"] }
 triple_accel =  { version = "*" }

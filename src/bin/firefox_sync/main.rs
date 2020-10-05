@@ -58,7 +58,7 @@ fn main() -> tantivy::Result<()> {
         Some(arg_path) => Some(PathBuf::from(arg_path)),
         None => find_places_file(),
     };
-    let path_name = ".firefox_sync_cache.toml".to_string();
+    let path_name = ".private_search/firefox_sync_cache.toml".to_string();
     let mut s = String::new();
     let file = OpenOptions::new()
         .read(true)
@@ -142,7 +142,8 @@ fn main() -> tantivy::Result<()> {
                         title: place.title,
                         bookmarked: Some(bookmarks.contains(&place.id)),
                         last_visit: place
-                            .last_visit_date.map(|num| Utc.timestamp(num / 1000000, 0)),
+                            .last_visit_date
+                            .map(|num| Utc.timestamp(num / 1000000, 0)),
                         access_count: Some(place.visit_count),
                         pinned: None,
                         keywords: None,
