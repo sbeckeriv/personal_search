@@ -75,14 +75,16 @@ fn main() -> tantivy::Result<()> {
         .write(true)
         .create(true)
         .open(&path_name);
+
     match file {
         Err(_why) => {
             //println!("couldn't open {}: {}", path_name, why.to_string());
         }
-        Ok(mut file) => match file.read_to_string(&mut s) {
-            Err(why) => panic!("couldn't read {}: {}", path_name, why),
-            Ok(_) => (),
-        },
+        Ok(mut file) => {
+            if let Err(why) = file.read_to_string(&mut s) {
+                panic!("couldn't read {}: {}", path_name, why)
+            };
+        }
     };
     let last_id = if !s.is_empty() {
         let value = s.parse::<Value>().unwrap();

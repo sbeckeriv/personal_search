@@ -92,7 +92,8 @@ fn search(query: String, index: tantivy::Index) {
             .unwrap_or("");
 
         let pinned = m
-            .get("pinned").map(|r| r.first().unwrap().value().i64_value())
+            .get("pinned")
+            .map(|r| r.first().unwrap().value().i64_value())
             .unwrap_or(0);
         println!(
             "{score}: {title} - {url}\n{summary}\n{pinned}",
@@ -119,7 +120,7 @@ fn main() -> tantivy::Result<()> {
             } else if let Some(url) = opt.import_url {
                 indexer::index_url(url, indexer::UrlMeta::default(), Some(&index));
             } else if let Some(facet) = opt.facet {
-                let field = opt.facet_field.unwrap_or("tags".to_string());
+                let field = opt.facet_field.unwrap_or_else(|| "tags".to_string());
                 facets(index, &field, &facet);
             }
         }

@@ -1,4 +1,3 @@
-
 use chrono::prelude::*;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
@@ -10,7 +9,7 @@ use std::convert::TryInto;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::io::{BufRead, Write};
+use std::io::Write;
 use std::panic;
 use std::path::Path;
 use std::time::Duration;
@@ -107,7 +106,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
 }
 
 // doesnt work. updates need a full rewrite.
-pub fn pin_url(url: &String, pinned: i8) {
+pub fn pin_url(url: &str, pinned: i8) {
     let index = search_index().expect("search index");
     let searcher = searcher(&index);
     let mut index_writer = index.writer(50_000_000).expect("writer");
@@ -142,7 +141,7 @@ pub fn pin_url(url: &String, pinned: i8) {
     };
 }
 
-pub fn get_url(url: &String) -> Result<String, reqwest::Error> {
+pub fn get_url(url: &str) -> Result<String, reqwest::Error> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()?;
@@ -172,7 +171,7 @@ pub struct UrlMeta {
     pub access_count: Option<i64>,
 }
 
-pub fn url_skip(url: &String) -> bool {
+pub fn url_skip(url: &str) -> bool {
     // lazy static this
 
     let parsed = reqwest::Url::parse(&url).expect("url pase");
@@ -194,9 +193,7 @@ pub fn url_skip(url: &String) -> bool {
         "gstatic.com/",
     ];
     let ignore_starts = vec!["moz-extension://"];
-    if !parsed.scheme().starts_with("http") {
-        true
-    } else if ignore_starts.iter().any(|s| url.starts_with(s)) {
+    if !parsed.scheme().starts_with("http") || ignore_starts.iter().any(|s| url.starts_with(s)) {
         true
     } else {
         ignore_includes.iter().any(|s| url.contains(s))
@@ -234,13 +231,10 @@ pub fn add_hash(domain: &str, hash: u64) {
             .get_all(index.schema().get_field("hashes").expect("f"))
             .iter()
         {
-            match s {
-                tantivy::schema::Value::Facet(facet) => {
-                    if facet.to_path_string() == new_hash {
-                        return;
-                    }
+            if let tantivy::schema::Value::Facet(facet) = s {
+                if facet.to_path_string() == new_hash {
+                    return;
                 }
-                _ => {}
             }
         }
         let frankenstein_isbn = Term::from_field_text(
@@ -268,8 +262,8 @@ pub fn add_hash(domain: &str, hash: u64) {
     index_writer.commit().expect("commit");
 }
 
-pub fn update_cached(url_hash: &String, index: &Index, meta: UrlMeta) {
-    let json_string = read_source(&url_hash);
+pub fn update_cached(url_hash: &str, index: &Index, meta: UrlMeta) {
+    let json_string = read_source(url_hash);
     let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
     for keyword in meta.keywords.unwrap_or_default() {
         let words = json.get_mut("keywords").expect("keywords");
@@ -305,9 +299,9 @@ pub fn update_cached(url_hash: &String, index: &Index, meta: UrlMeta) {
     let mut index_writer = index.writer(50_000_000).expect("writer");
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
-    write_source(&url_hash, json);
+    write_source(url_hash, json);
 }
-pub fn remote_index(url: &String, index: &Index, meta: UrlMeta) {
+pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
     let url_hash = md5_hash(&url);
     let parsed = reqwest::Url::parse(&url).expect("url pase");
     match get_url(&url) {
@@ -317,7 +311,7 @@ pub fn remote_index(url: &String, index: &Index, meta: UrlMeta) {
             let mut doc = tantivy::Document::default();
             let title = match document.find(select::predicate::Name("title")).next() {
                 Some(node) => node.text(),
-                _ => meta.title.unwrap_or("".to_string()),
+                _ => meta.title.unwrap_or_else(|| "".to_string()),
             };
 
             let meta_description = document
@@ -366,14 +360,17 @@ pub fn remote_index(url: &String, index: &Index, meta: UrlMeta) {
                         summarization_model.summarize(&input).join(" ")
                     });
 
-                    if result.is_ok() {
-                        doc.add_text(
+                    match result {
+                        Ok(results) => {
+                            doc.add_text(
                             index.schema().get_field("summary").expect("summary"),
-                            &result.unwrap().replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "").trim(),
+                            &results.replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "").trim(),
                         );
-                    } else {
-                        println!("sum error");
-                    }
+                        }
+                        _ => {
+                            println!("sum error");
+                        }
+                    };
                 } else {
                     doc.add_i64(index.schema().get_field("duplicate").expect("duplicate"), 1);
                 }
@@ -428,7 +425,7 @@ pub fn remote_index(url: &String, index: &Index, meta: UrlMeta) {
                 &Utc::now(),
             );
 
-            let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or(Utc::now());
+            let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or_else(Utc::now);
             doc.add_date(
                 index
                     .schema()
@@ -495,28 +492,26 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
         remote_index(&url, &index, meta)
     };
 }
-pub fn source_exists(filename: &String) -> bool {
+pub fn source_exists(filename: &str) -> bool {
     let system_path = ".private_search";
     let index_path = Path::new(system_path);
     let source_path = index_path.join("source");
     source_path.join(format!("{}.jsonc", filename)).exists()
 }
-pub fn write_source(url_hash: &String, json: String) {
+pub fn write_source(url_hash: &str, json: String) {
     let system_path = ".private_search";
     let index_path = Path::new(system_path);
     let source_path = index_path.join("source");
-    let output =
-        File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
+    let output = File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
     let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
     writer.write_all(json.as_bytes());
     //output.write_all(json.as_bytes()).expect("write");
 }
-pub fn read_source(url_hash: &String) -> String {
+pub fn read_source(url_hash: &str) -> String {
     let system_path = ".private_search";
     let index_path = Path::new(system_path);
     let source_path = index_path.join("source");
-    let input =
-        File::open(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
+    let input = File::open(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
 
     let mut reader = brotli::Decompressor::new(
         input, 4096, // buffer size
@@ -525,7 +520,8 @@ pub fn read_source(url_hash: &String) -> String {
     reader.read_to_string(&mut json);
     json
 }
-pub fn duplicate(domain: &String, content_hash: &u64) -> bool {
+
+pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
     let system_path = ".private_search";
     let index = hash_index(system_path).expect("hash index");
     let searcher = searcher(&index);
@@ -550,28 +546,25 @@ pub fn duplicate(domain: &String, content_hash: &u64) -> bool {
             .get_all(index.schema().get_field("hashes").expect("f"))
             .iter()
         {
-            match s {
-                tantivy::schema::Value::Facet(facet) => {
-                    let hash_number = facet
-                        .to_path()
-                        .remove(0)
-                        .parse::<i64>()
-                        .unwrap_or(0)
-                        .to_le_bytes();
+            if let tantivy::schema::Value::Facet(facet) = s {
+                let hash_number = facet
+                    .to_path()
+                    .remove(0)
+                    .parse::<i64>()
+                    .unwrap_or(0)
+                    .to_le_bytes();
 
-                    let ham = hamming(&hash_number, &content_hash_bytes);
-                    if ham < 4 {
-                        return true;
-                    }
+                let ham = hamming(&hash_number, &content_hash_bytes);
+                if ham < 4 {
+                    return true;
                 }
-                _ => {}
             };
         }
     }
     false
 }
 
-pub fn find_url(url: &String, index: &Index) -> std::option::Option<tantivy::DocAddress> {
+pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAddress> {
     let searcher = searcher(&index);
     let query_parser = QueryParser::for_index(
         &index,
@@ -587,7 +580,7 @@ pub fn find_url(url: &String, index: &Index) -> std::option::Option<tantivy::Doc
     // need to load the doc to get the real url to compare vs input.
     // roots like www.google.com/ will show up for
     // www.google.com/?q=some_search
-    match top_docs.iter().nth(0) {
+    match top_docs.get(0) {
         Some((_, doc_address)) => Some(*doc_address),
         _ => None,
     }

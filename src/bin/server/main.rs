@@ -1,13 +1,8 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
-use actix_web::{
-    error, http, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, Result,
-};
-use futures::StreamExt;
-
+use actix_web::{middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use personal_search::indexer;
 use serde::{Deserialize, Serialize};
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -220,7 +215,7 @@ pub struct FacetRequest {
 }
 
 async fn facet_request(web::Query(info): web::Query<FacetRequest>) -> web::Json<Vec<FacetCount>> {
-    let field = info.facet_field.unwrap_or("keywords".to_string());
+    let field = info.facet_field.unwrap_or_else(|| "keywords".to_string());
     web::Json(facets(info.facet, field))
 }
 
@@ -240,7 +235,7 @@ async fn main() -> std::io::Result<()> {
         std::env::set_var("RUST_LOG", "actix_web=debug");
         env_logger::init();
     }
-    let port = opt.port.unwrap_or("7172".to_string());
+    let port = opt.port.unwrap_or_else(|| "7172".to_string());
     HttpServer::new(|| {
         App::new()
             .wrap(
