@@ -4,7 +4,7 @@ use glob::glob;
 use personal_search::indexer;
 use rusqlite::{params, Connection, Result};
 use std::collections::HashSet;
-use std::env;
+
 use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
@@ -63,7 +63,7 @@ use std::fs::OpenOptions;
 use toml::Value;
 fn main() -> tantivy::Result<()> {
     let opt = Opt::from_args();
-    let index = indexer::search_index().unwrap();
+    let _index = indexer::search_index().unwrap();
     let place = match opt.db {
         Some(arg_path) => Some(arg_path),
         None => find_places_file(),

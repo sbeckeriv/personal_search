@@ -30,7 +30,7 @@ pub struct Opt {
     search_folder_path: Option<PathBuf>,
 }
 
-fn set_attribute(url: String, field: String, value: i8) {
+fn set_attribute(_url: String, _field: String, _value: i8) {
     //indexer::pin_url(&url, pin);
 }
 

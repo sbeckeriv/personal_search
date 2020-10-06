@@ -1,4 +1,4 @@
-use brotli;
+
 use chrono::prelude::*;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
@@ -10,7 +10,7 @@ use std::convert::TryInto;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::io::{BufRead, BufReader, Error, Write};
+use std::io::{BufRead, Write};
 use std::panic;
 use std::path::Path;
 use std::time::Duration;
@@ -272,8 +272,8 @@ pub fn update_cached(url_hash: &String, index: &Index, meta: UrlMeta) {
     let json_string = read_source(&url_hash);
     let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
     for keyword in meta.keywords.unwrap_or_default() {
-        let mut words = json.get_mut("keywords").expect("keywords");
-        if let Some(mut array) = words.as_array_mut() {
+        let words = json.get_mut("keywords").expect("keywords");
+        if let Some(array) = words.as_array_mut() {
             let value = serde_json::Value::String(keyword.clone());
             if !array.contains(&value) {
                 array.push(value);
@@ -396,7 +396,7 @@ pub fn remote_index(url: &String, index: &Index, meta: UrlMeta) {
                 index.schema().get_field("domain").expect("domain"),
                 parsed.domain().unwrap_or(""),
             );
-            let found_urls = document
+            let _found_urls = document
                 .find(select::predicate::Name("a"))
                 .filter_map(|n| n.attr("href"))
                 .map(str::to_string)
@@ -505,7 +505,7 @@ pub fn write_source(url_hash: &String, json: String) {
     let system_path = ".private_search";
     let index_path = Path::new(system_path);
     let source_path = index_path.join("source");
-    let mut output =
+    let output =
         File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
     let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
     writer.write_all(json.as_bytes());
@@ -515,7 +515,7 @@ pub fn read_source(url_hash: &String) -> String {
     let system_path = ".private_search";
     let index_path = Path::new(system_path);
     let source_path = index_path.join("source");
-    let mut input =
+    let input =
         File::open(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
 
     let mut reader = brotli::Decompressor::new(
