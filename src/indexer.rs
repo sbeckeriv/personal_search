@@ -4,6 +4,7 @@ use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
 use select::document;
+use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::fs;
@@ -68,6 +69,7 @@ pub fn hash_index(system_path: &str) -> std::result::Result<tantivy::Index, tant
         }
     }
 }
+
 pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
     let system_path = ".private_search";
     let directory = index_directory(&system_path);
@@ -103,6 +105,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
         }
     }
 }
+
 // doesnt work. updates need a full rewrite.
 pub fn pin_url(url: &String, pinned: i8) {
     let index = search_index().expect("search index");
@@ -204,6 +207,7 @@ fn md5_hash(domain: &str) -> String {
     let digest = md5::compute(domain.as_bytes());
     format!("{:x}", digest)
 }
+
 pub fn add_hash(domain: &str, hash: u64) {
     let system_path = ".private_search";
     let index = hash_index(system_path).expect("hash index");
@@ -264,6 +268,204 @@ pub fn add_hash(domain: &str, hash: u64) {
     index_writer.commit().expect("commit");
 }
 
+pub fn update_cached(url_hash: &String, index: &Index, meta: UrlMeta) {
+    let json_string = read_source(&url_hash);
+    let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
+    for keyword in meta.keywords.unwrap_or_default() {
+        let mut words = json.get_mut("keywords").expect("keywords");
+        if let Some(mut array) = words.as_array_mut() {
+            let value = serde_json::Value::String(keyword.clone());
+            if !array.contains(&value) {
+                array.push(value);
+            }
+        }
+    }
+    if let Some(last_visit) = meta.last_visit {
+        *json.get_mut("last_accessed_at").unwrap() = json!(last_visit.to_rfc3339());
+    }
+
+    if let Some(pinned) = meta.pinned {
+        *json.get_mut("pinned").unwrap() = json!(vec![pinned]);
+    }
+
+    if let Some(accessed_count) = meta.access_count {
+        *json.get_mut("accessed_count").unwrap() = json!(vec![accessed_count]);
+    }
+
+    if let Some(bookmarked) = meta.bookmarked {
+        let bookmarked = if bookmarked { 1 } else { 0 };
+        *json.get_mut("accessed_count").unwrap() = json!(vec![bookmarked]);
+    }
+    let doc = index
+        .schema()
+        .parse_document(&json.to_string())
+        .expect("doc from json");
+
+    let json = index.schema().to_json(&doc);
+    let mut index_writer = index.writer(50_000_000).expect("writer");
+    index_writer.add_document(doc);
+    index_writer.commit().expect("commit");
+    write_source(&url_hash, json);
+}
+pub fn remote_index(url: &String, index: &Index, meta: UrlMeta) {
+    let url_hash = md5_hash(&url);
+    let parsed = reqwest::Url::parse(&url).expect("url pase");
+    match get_url(&url) {
+        Ok(body) => {
+            println!("processing {}", &url);
+            let document = document::Document::from(body.as_str());
+            let mut doc = tantivy::Document::default();
+            let title = match document.find(select::predicate::Name("title")).next() {
+                Some(node) => node.text(),
+                _ => meta.title.unwrap_or("".to_string()),
+            };
+
+            let meta_description = document
+                .find(select::predicate::Name("meta"))
+                .filter(|node| node.attr("name").unwrap_or("") == "description")
+                .filter_map(|n| n.attr("content"))
+                .map(str::to_string)
+                .collect::<Vec<String>>();
+            let empty = "".to_string();
+            let description = match meta_description.first() {
+                Some(node) => node,
+                _ => &empty,
+            };
+
+            let body = match document.find(select::predicate::Name("body")).next() {
+                Some(node) => node.text().split_whitespace().collect::<Vec<_>>().join(" "),
+                _ => {
+                    // nothing to index
+                    return;
+                }
+            };
+            if body.split_whitespace().nth(100).is_some() {
+                let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
+                let content_hash =
+                    sim_hash.get_sim_hash(ShingleIterator::new(2, body.split(' ').collect()));
+                let dup = duplicate(&parsed.domain().unwrap().to_string(), &content_hash);
+
+                doc.add_i64(
+                    index
+                        .schema()
+                        .get_field("content_hash")
+                        .expect("content_hash"),
+                    content_hash.try_into().unwrap_or(0),
+                );
+                add_hash(&parsed.domain().expect("domain"), content_hash);
+
+                if !dup {
+                    doc.add_text(index.schema().get_field("content").expect("content"), &body);
+
+                    let config = SummarizationConfig::default();
+
+                    let result = panic::catch_unwind(|| {
+                        let summarization_model =
+                            SummarizationModel::new(config).expect("summarization_model fail");
+                        let input = [body.as_str()];
+                        summarization_model.summarize(&input).join(" ")
+                    });
+
+                    if result.is_ok() {
+                        doc.add_text(
+                            index.schema().get_field("summary").expect("summary"),
+                            &result.unwrap().replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "").trim(),
+                        );
+                    } else {
+                        println!("sum error");
+                    }
+                } else {
+                    doc.add_i64(index.schema().get_field("duplicate").expect("duplicate"), 1);
+                }
+            } else {
+                // add the text anyway its small even if it is a dup
+                doc.add_text(index.schema().get_field("content").expect("content"), &body);
+            }
+
+            doc.add_text(
+                index
+                    .schema()
+                    .get_field("description")
+                    .expect("description"),
+                &description,
+            );
+            doc.add_text(index.schema().get_field("title").expect("title"), &title);
+            doc.add_text(index.schema().get_field("url").expect("url"), &url);
+
+            doc.add_text(
+                index.schema().get_field("domain").expect("domain"),
+                parsed.domain().unwrap_or(""),
+            );
+            let found_urls = document
+                .find(select::predicate::Name("a"))
+                .filter_map(|n| n.attr("href"))
+                .map(str::to_string)
+                .collect::<HashSet<String>>();
+
+            let keywords = document
+                .find(select::predicate::Name("meta"))
+                .filter(|node| node.attr("name").unwrap_or("") == "keywords")
+                .filter_map(|n| n.attr("content"))
+                .flat_map(|s| s.split(','))
+                .map(str::to_string)
+                .collect::<Vec<String>>();
+
+            for keyword in keywords {
+                doc.add_facet(
+                    index.schema().get_field("tags").expect("tags"),
+                    Facet::from(&format!("/keywords/{}", keyword.trim())),
+                );
+            }
+            for keyword in meta.keywords.unwrap_or_default() {
+                doc.add_facet(
+                    index.schema().get_field("tags").expect("tags"),
+                    Facet::from(&format!("/keywords/{}", keyword)),
+                );
+            }
+
+            doc.add_date(
+                index.schema().get_field("added_at").expect("added_at"),
+                &Utc::now(),
+            );
+
+            let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or(Utc::now());
+            doc.add_date(
+                index
+                    .schema()
+                    .get_field("last_accessed_at")
+                    .expect("added_at"),
+                &last_visit,
+            );
+            doc.add_i64(
+                index.schema().get_field("pinned").expect("pinned"),
+                meta.pinned.unwrap_or(0),
+            );
+            doc.add_i64(
+                index
+                    .schema()
+                    .get_field("accessed_count")
+                    .expect("accessed_count"),
+                meta.access_count.unwrap_or(1),
+            );
+            doc.add_i64(
+                index.schema().get_field("bookmarked").expect("bookmarked"),
+                0,
+            );
+            doc.add_text(index.schema().get_field("id").expect("id"), &url_hash);
+            let json = index.schema().to_json(&doc);
+
+            let mut index_writer = index.writer(50_000_000).expect("writer");
+            index_writer.add_document(doc);
+            index_writer.commit().expect("commit");
+
+            write_source(&url_hash, json);
+        }
+
+        Err(e) => {
+            dbg!(e);
+        }
+    }
+}
 pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
     let i;
     let index = match index {
@@ -274,15 +476,15 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
         }
     };
 
+    let url_hash = md5_hash(&url);
+    println!("indexing {} {}", &url_hash, &url);
     if url_skip(&url) {
         println!("skip {}", url);
     } else if let Some(_doc_address) = find_url(&url, &index) {
         println!("have {}", url);
-    // update?
-
-    //let searcher = searcher(&index);
-    // let retrieved_doc = searcher.doc(doc_address).expect("doc");
-    //    println!("{}", index.schema().to_json(&retrieved_doc));
+    } else if source_exists(&url_hash) {
+        println!("cached file {}", url);
+        update_cached(&url_hash, &index, meta);
     } else {
         let parsed = reqwest::Url::parse(&url).expect("url pase");
 
@@ -290,161 +492,16 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
         if parsed.domain().is_none() {
             return;
         }
-        match get_url(&url) {
-            Ok(body) => {
-                let document = document::Document::from(body.as_str());
-                let mut doc = tantivy::Document::default();
-                let title = match document.find(select::predicate::Name("title")).next() {
-                    Some(node) => node.text(),
-                    _ => meta.title.unwrap_or("".to_string()),
-                };
-
-                let meta_description = document
-                    .find(select::predicate::Name("meta"))
-                    .filter(|node| node.attr("name").unwrap_or("") == "description")
-                    .filter_map(|n| n.attr("content"))
-                    .map(str::to_string)
-                    .collect::<Vec<String>>();
-                let empty = "".to_string();
-                let description = match meta_description.first() {
-                    Some(node) => node,
-                    _ => &empty,
-                };
-
-                let body = match document.find(select::predicate::Name("body")).next() {
-                    Some(node) => node.text().split_whitespace().collect::<Vec<_>>().join(" "),
-                    _ => {
-                        // nothing to index
-                        return;
-                    }
-                };
-                if body.split_whitespace().nth(100).is_some() {
-                    let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
-                    let content_hash =
-                        sim_hash.get_sim_hash(ShingleIterator::new(2, body.split(' ').collect()));
-                    let dup = duplicate(&parsed.domain().unwrap().to_string(), &content_hash);
-
-                    doc.add_i64(
-                        index
-                            .schema()
-                            .get_field("content_hash")
-                            .expect("content_hash"),
-                        content_hash.try_into().unwrap_or(0),
-                    );
-                    add_hash(&parsed.domain().expect("domain"), content_hash);
-
-                    if !dup {
-                        doc.add_text(index.schema().get_field("content").expect("content"), &body);
-
-                        let config = SummarizationConfig::default();
-
-                        let result = panic::catch_unwind(|| {
-                            let summarization_model =
-                                SummarizationModel::new(config).expect("summarization_model fail");
-                            let input = [body.as_str()];
-                            summarization_model.summarize(&input).join(" ")
-                        });
-
-                        if result.is_ok() {
-                            doc.add_text(
-                            index.schema().get_field("summary").expect("summary"),
-                            &result.unwrap().replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "").trim(),
-                        );
-                        } else {
-                            println!("sum error");
-                        }
-                    } else {
-                        doc.add_i64(index.schema().get_field("duplicate").expect("duplicate"), 1);
-                    }
-                } else {
-                    // add the text anyway its small even if it is a dup
-                    doc.add_text(index.schema().get_field("content").expect("content"), &body);
-                }
-
-                doc.add_text(
-                    index
-                        .schema()
-                        .get_field("description")
-                        .expect("description"),
-                    &description,
-                );
-                doc.add_text(index.schema().get_field("title").expect("title"), &title);
-                doc.add_text(index.schema().get_field("url").expect("url"), &url);
-
-                doc.add_text(
-                    index.schema().get_field("domain").expect("domain"),
-                    parsed.domain().unwrap_or(""),
-                );
-                let found_urls = document
-                    .find(select::predicate::Name("a"))
-                    .filter_map(|n| n.attr("href"))
-                    .map(str::to_string)
-                    .collect::<HashSet<String>>();
-
-                let keywords = document
-                    .find(select::predicate::Name("meta"))
-                    .filter(|node| node.attr("name").unwrap_or("") == "keywords")
-                    .filter_map(|n| n.attr("content"))
-                    .flat_map(|s| s.split(','))
-                    .map(str::to_string)
-                    .collect::<Vec<String>>();
-
-                for keyword in keywords {
-                    doc.add_facet(
-                        index.schema().get_field("tags").expect("tags"),
-                        Facet::from(&format!("/keywords/{}", keyword.trim())),
-                    );
-                }
-                for keyword in meta.keywords.unwrap_or_default() {
-                    doc.add_facet(
-                        index.schema().get_field("tags").expect("tags"),
-                        Facet::from(&format!("/keywords/{}", keyword)),
-                    );
-                }
-
-                doc.add_date(
-                    index.schema().get_field("added_at").expect("added_at"),
-                    &Utc::now(),
-                );
-
-                let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or(Utc::now());
-                doc.add_date(
-                    index.schema().get_field("added_at").expect("added_at"),
-                    &last_visit,
-                );
-                doc.add_i64(
-                    index.schema().get_field("pinned").expect("pinned"),
-                    meta.pinned.unwrap_or(0),
-                );
-                doc.add_i64(
-                    index
-                        .schema()
-                        .get_field("accessed_count")
-                        .expect("accessed_count"),
-                    meta.access_count.unwrap_or(1),
-                );
-                doc.add_i64(
-                    index.schema().get_field("bookmarked").expect("bookmarked"),
-                    0,
-                );
-
-                doc.add_text(index.schema().get_field("id").expect("id"), &md5_hash(&url));
-                let json = index.schema().to_json(&doc);
-                write_source(md5_hash(&url), json);
-                let mut index_writer = index.writer(50_000_000).expect("writer");
-                index_writer.add_document(doc);
-                index_writer.commit().expect("commit");
-            }
-
-            Err(e) => {
-                dbg!(e);
-                // add a down domain list to skip
-                // error logging as well.
-            }
-        }
+        remote_index(&url, &index, meta)
     };
 }
-pub fn write_source(url_hash: String, json: String) {
+pub fn source_exists(filename: &String) -> bool {
+    let system_path = ".private_search";
+    let index_path = Path::new(system_path);
+    let source_path = index_path.join("source");
+    source_path.join(format!("{}.jsonc", filename)).exists()
+}
+pub fn write_source(url_hash: &String, json: String) {
     let system_path = ".private_search";
     let index_path = Path::new(system_path);
     let source_path = index_path.join("source");
@@ -454,7 +511,7 @@ pub fn write_source(url_hash: String, json: String) {
     writer.write_all(json.as_bytes());
     //output.write_all(json.as_bytes()).expect("write");
 }
-pub fn read_source(url_hash: String) -> String {
+pub fn read_source(url_hash: &String) -> String {
     let system_path = ".private_search";
     let index_path = Path::new(system_path);
     let source_path = index_path.join("source");

@@ -6,7 +6,7 @@ edition = "2018"
 
 [features]
 firefox_sync = [ "rusqlite", "glob", "dirs" ]
-server = [ "actix-web","actix-cors", "actix-files", "serde", "actix-service", "futures", "env_logger", "serde_json", "json"]
+server = [ "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 
 [dependencies]
 tantivy = "0.13.2"
@@ -18,6 +18,8 @@ lazy_static = "*"
 toml = "*"
 structopt = "*"
 brotli = "*"
+serde = { version = "1", features = ["derive"]}
+serde_json =  { version = "1" }
 
 probabilistic-collections = { version = "*", features = ["serde"] }
 triple_accel =  { version = "*" }
@@ -35,8 +37,6 @@ actix-cors =  { version = "*", optional = true }
 actix-service = { version =  "1", optional = true }
 futures =  { version = "0.3.1", optional = true }
 env_logger = { version =  "0.7", optional = true }
-serde = { version = "1", features = ["derive"], optional = true }
-serde_json =  { version = "1", optional = true }
 json =  { version = "0.12", optional = true }
 
 [[bin]]

@@ -9,6 +9,18 @@ use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::path::PathBuf;
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug)]
+pub struct Opt {
+    #[structopt(long = "backfill")]
+    backfill: bool,
+    #[structopt(short = "v", long = "verbose")]
+    verbose: bool,
+    #[structopt(long = "db")]
+    #[structopt(parse(from_os_str))]
+    db: Option<PathBuf>,
+}
 
 fn find_places_file() -> Option<PathBuf> {
     //~/.mozilla/firefox/xdfjt9cu.default/places.sqlite
@@ -50,12 +62,10 @@ struct MozBookmarks {
 use std::fs::OpenOptions;
 use toml::Value;
 fn main() -> tantivy::Result<()> {
-    let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
-    let arg_path = args.get(1);
+    let opt = Opt::from_args();
     let index = indexer::search_index().unwrap();
-    let place = match arg_path {
-        Some(arg_path) => Some(PathBuf::from(arg_path)),
+    let place = match opt.db {
+        Some(arg_path) => Some(arg_path),
         None => find_places_file(),
     };
     let path_name = ".private_search/firefox_sync_cache.toml".to_string();
@@ -104,7 +114,7 @@ fn main() -> tantivy::Result<()> {
                     .map(|b| b.as_ref().ok().unwrap().fk.unwrap()),
             );
 
-            let mut stmt = conn.prepare("SELECT id, url, title, description, visit_count, hidden, last_visit_date FROM moz_places").expect("place prep");
+            let mut stmt = conn.prepare("SELECT id, url, title, description, visit_count, hidden, last_visit_date FROM moz_places order by last_visit_date desc").expect("place prep");
             let places_iter = stmt
                 .query_map(params![], |row| {
                     // dont use wrapper object. we could call it right here.
@@ -122,9 +132,18 @@ fn main() -> tantivy::Result<()> {
             for places in places_iter {
                 let place = places.unwrap();
                 if place.visit_count > 0 && place.hidden == 0 {
+                    //move off of index and on time last_visit_date for updates
                     if let Some(id_check) = last_id {
-                        if id_check > place.id {
-                            continue;
+                        if opt.backfill {
+                            // backfill we start with the newest so we want the oldest.
+                            if id_check < place.id {
+                                continue;
+                            }
+                        } else {
+                            // move forward in time.
+                            if id_check > place.id {
+                                continue;
+                            }
                         }
                     }
                     if place.id % 10 == 0 {
@@ -148,7 +167,7 @@ fn main() -> tantivy::Result<()> {
                         pinned: None,
                         keywords: None,
                     };
-                    indexer::index_url(place.url, meta, Some(&index))
+                    indexer::index_url(place.url, meta, None)
                 }
             }
         }
