@@ -136,27 +136,31 @@ fn main() -> tantivy::Result<()> {
                 if place.visit_count > 0 && place.hidden == 0 {
                     //move off of index and on time last_visit_date for updates
                     if let Some(id_check) = last_id {
-                        if opt.backfill {
-                            // backfill we start with the newest so we want the oldest.
-                            if id_check < place.id {
-                                continue;
-                            }
-                        } else {
-                            // move forward in time.
-                            if id_check > place.id {
-                                continue;
+                        if let Some(last) = place.last_visit_date {
+                            if opt.backfill {
+                                // backfill we start with the newest so we want the oldest.
+                                if id_check < last {
+                                    continue;
+                                }
+                            } else {
+                                // move forward in time.
+                                if id_check > last {
+                                    continue;
+                                }
                             }
                         }
                     }
                     if place.id % 10 == 0 {
-                        let mut file = OpenOptions::new()
-                            .truncate(true)
-                            .write(true)
-                            .create(true)
-                            .open(&path_name)
-                            .expect("cache file");
+                        if let Some(last) = place.last_visit_date {
+                            let mut file = OpenOptions::new()
+                                .truncate(true)
+                                .write(true)
+                                .create(true)
+                                .open(&path_name)
+                                .expect("cache file");
 
-                        file.write_all(format!("last_id = {}", place.id).as_bytes());
+                            file.write_all(format!("last_id = {}", last).as_bytes());
+                        }
                     }
 
                     let meta = indexer::UrlMeta {
