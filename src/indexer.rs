@@ -3,11 +3,13 @@ use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
 use select::document;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::fs;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
 use std::panic;
@@ -18,6 +20,82 @@ use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
+
+#[derive(Serialize, Debug, Deserialize)]
+pub struct SystemSettings {
+    pub port: String,
+    pub ignore_domains: Vec<String>,
+    pub ignore_strings: Vec<String>,
+}
+
+impl Default for SystemSettings {
+    fn default() -> Self {
+        SystemSettings {
+            port: "7172".to_string(),
+            ignore_strings: vec![],
+            ignore_domains: vec![
+                "//127.0.0.1".to_string(),
+                "//192.168.".to_string(),
+                ".lvh.me".to_string(),
+                "//0.0.0.0".to_string(),
+                "//lvh.me".to_string(),
+                "//localhost/".to_string(),
+                "//localhost:".to_string(),
+                "google.com/".to_string(),
+                "youtube.com/".to_string(),
+                "ebay.com/".to_string(),
+                "aha.io/".to_string(),
+                "newrelic.com/".to_string(),
+                "datadoghq.com/".to_string(),
+                "amazon.com/".to_string(),
+                "woot.com/".to_string(),
+                "imgur.com".to_string(),
+                "gstatic.com/".to_string(),
+            ],
+        }
+    }
+}
+
+pub fn write_settings(config: &SystemSettings) {
+    let path_name = ".private_search/server_settings.toml".to_string();
+    let mut s = String::new();
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&path_name);
+
+    file.expect("setting filewrite")
+        .write_all(toml::to_string(&config).unwrap().as_bytes());
+}
+
+pub fn read_settings() -> SystemSettings {
+    let path_name = ".private_search/server_settings.toml".to_string();
+    let mut s = String::new();
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&path_name);
+
+    match file {
+        Err(_why) => {
+            //println!("couldn't open {}: {}", path_name, why.to_string());
+        }
+        Ok(mut file) => {
+            if let Err(why) = file.read_to_string(&mut s) {
+                panic!("couldn't read {}: {}", path_name, why)
+            };
+        }
+    };
+
+    if !s.is_empty() {
+        let config: SystemSettings = toml::from_str(&s).expect("bad config parse");
+        config
+    } else {
+        SystemSettings::default()
+    }
+}
 
 fn create_directory(system_path: &str) {
     let index_path = Path::new(system_path);
@@ -138,6 +216,7 @@ pub fn pin_url(url: &str, pinned: i8) {
         dbg!(&doc);
         index_writer.add_document(doc);
         index_writer.commit().expect("commit");
+        index_writer.wait_merging_threads().expect("merge");
     };
 }
 
@@ -182,7 +261,10 @@ pub fn url_skip(url: &str) -> bool {
         ".lvh.me",
         "//0.0.0.0",
         "//lvh.me",
+        "//localhost/",
+        "//localhost:",
         "google.com/",
+        "youtube.com/",
         "ebay.com/",
         "aha.io/",
         "newrelic.com/",
@@ -192,8 +274,7 @@ pub fn url_skip(url: &str) -> bool {
         "imgur.com",
         "gstatic.com/",
     ];
-    let ignore_starts = vec!["moz-extension://"];
-    if !parsed.scheme().starts_with("http") || ignore_starts.iter().any(|s| url.starts_with(s)) {
+    if !parsed.scheme().starts_with("http") {
         true
     } else {
         ignore_includes.iter().any(|s| url.contains(s))
@@ -260,6 +341,7 @@ pub fn add_hash(domain: &str, hash: u64) {
 
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
+index_writer.wait_merging_threads().expect("merge");
 }
 
 pub fn update_cached(url_hash: &str, index: &Index, meta: UrlMeta) {
@@ -299,6 +381,7 @@ pub fn update_cached(url_hash: &str, index: &Index, meta: UrlMeta) {
     let mut index_writer = index.writer(50_000_000).expect("writer");
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
+index_writer.wait_merging_threads().expect("merge");
     write_source(url_hash, json);
 }
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
@@ -454,6 +537,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
             let mut index_writer = index.writer(50_000_000).expect("writer");
             index_writer.add_document(doc);
             index_writer.commit().expect("commit");
+index_writer.wait_merging_threads().expect("merge");
 
             write_source(&url_hash, json);
         }

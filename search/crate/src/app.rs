@@ -15,9 +15,192 @@ pub struct App {
     link: ComponentLink<Self>,
     search: String,
     port: String,
-
     fetching: bool,
     network_task: Option<yew::services::fetch::FetchTask>,
+}
+
+#[derive(Serialize, Debug, Deserialize)]
+pub struct SystemSettings {
+    pub port: String,
+    pub ignore_domains: Vec<String>,
+    pub ignore_strings: Vec<String>,
+}
+
+pub struct Settings {
+    link: ComponentLink<Self>,
+    settings: Option<SystemSettings>,
+    port: String,
+    new_ignore_string: String,
+    new_ignore_domains: String,
+    fetching: bool,
+    network_task: Option<yew::services::fetch::FetchTask>,
+}
+//impl FetchJson for Settings {} figure this out with link
+impl Settings {
+    fn fetch_json(
+        &mut self,
+        binary: bool,
+        url: String,
+        stored_data: String,
+    ) -> yew::services::fetch::FetchTask {
+        let callback = self
+            .link
+            .callback(move |response: Response<Json<Result<Value, Error>>>| {
+                let (meta, Json(data)) = response.into_parts();
+                if meta.status.is_success() {
+                    Msg::FetchReady((stored_data.clone(), data))
+                } else {
+                    Msg::Ignore // FIXME: Handle this error accordingly.
+                }
+            });
+        let request = Request::get(url)
+            .header("Accept", "application/json")
+            .body(Nothing)
+            .unwrap();
+        if binary {
+            FetchService::fetch_binary(request, callback).unwrap()
+        } else {
+            FetchService::fetch(request, callback).unwrap()
+        }
+    }
+    fn fetch_settings(&mut self, port: Option<String>) {
+        self.fetching = true;
+        self.network_task = Some(self.fetch_json(
+            false,
+            format!(
+                "http://localhost:{}/settings",
+                port.unwrap_or_else(|| self.port.clone())
+            ),
+            "settings".to_string(),
+        ));
+    }
+
+    fn loaded(&self) -> Html {
+        if let Some(settings) = self.settings.as_ref() {
+            html! {<>
+              <div class="row">
+                <div class="input-field col s6">
+                  <div class="cliplist">
+                    { settings.ignore_domains.iter().map(|d|{
+                                                                let domain = d.clone();
+                                                                html!{
+                                                                  <div class="chip">
+                                                                    {format!("{}",d.clone())}
+                                                                    <i class="close material-icons" onclick=self.link.callback(move |e: MouseEvent| Msg::RemoveIgnoreDomains(domain.clone()))>{"close"}</i>
+                                                                  </div>
+                                                                }
+                                                            }).collect::<Html>() }
+                  </div>
+                  <input id="ignore_domains" type="text" value=self.new_ignore_domains.clone() oninput=self.link.callback(|e: InputData| Msg::UpdateIgnoreDomains(e.value))/>
+                  <label class="active" for="ignore_domains">{ "Ignore domains (space adds it to the list)" }</label>
+                </div>
+              </div>
+              <div class="row">
+                <div class="input-field col s6">
+                  <input id="ignore_strings" type="text" value={settings.ignore_strings.join(", ")} oninput=self.link.callback(|e: InputData| Msg::IgnoreStrings(e.value))/>
+                  <label class="active" for="ignore_strings">{ "Ignore strings (csv list)" }</label>
+                </div>
+              </div>
+            </>}
+        } else {
+            html! {<>
+              <div class="row">
+              { "The settings from the server have not loaded yet. If you changed the default port please manually restart the server and reload the page" }
+              </div>
+            </>}
+        }
+    }
+    fn settings_modal(&self) -> Html {
+        html! {
+            <>
+        <div id="setting_modal" class="modal">
+          <div class="modal-content">
+              <div class="row">
+                <form class="col s12">
+                  { self.loaded()}
+                  <div class="row">
+                    <div class="input-field col s6">
+                      <input id="port" type="text" value={self.settings.as_ref().and_then(|s| Some(s.port.clone())).unwrap_or_else(|| self.port.clone())} oninput=self.link.callback(|e: InputData| Msg::UpdatePort(e.value))/>
+                      <label class="active" for="port">{ "Server Port (manual restarts required)" }</label>
+                    </div>
+                  </div>
+                </form>
+              </div>
+          </div>
+        </div>
+        </>
+              }
+    }
+}
+
+impl Component for Settings {
+    type Message = Msg;
+    type Properties = ();
+
+    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let mut s = Settings {
+            link,
+            settings: None,
+            new_ignore_domains: String::new(),
+            new_ignore_string: String::new(),
+            port: "7172".to_string(),
+            fetching: false,
+            network_task: None,
+        };
+        s.fetch_settings(Some(s.port.clone()));
+        s
+    }
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        false
+    }
+
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::UpdateIgnoreDomains(string) => {
+                if string.ends_with(" ") {
+                    if let Some(mut settings) = self.settings.as_mut() {
+                        settings.ignore_domains.push(string);
+                    }
+                    self.new_ignore_domains = String::new();
+                } else {
+                    self.new_ignore_domains = string;
+                }
+            }
+
+            Msg::RemoveIgnoreDomains(string) => {
+                if let Some(mut settings) = self.settings.as_mut() {
+                    settings.ignore_domains.retain(|x| x != &string);
+                }
+            }
+
+            Msg::UpdatePort(string) => {
+                self.port = string;
+                self.fetch_settings(Some(self.port.clone()));
+            }
+            Msg::FetchReady(response) => match response.0.as_str() {
+                "settings" => {
+                    self.fetching = false;
+                    self.network_task = None;
+                    if let Ok(results) = response.1 {
+                        let results: Option<SystemSettings> = serde_json::from_value(results).ok();
+                        ConsoleService::log(&format!("{:?}", results));
+                        self.settings = results;
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        true
+    }
+
+    fn view(&self) -> Html {
+        html! {
+        <>
+            { self.settings_modal() }
+        </>
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -429,23 +612,8 @@ impl App {
     }
     fn setting_modal(&self) -> Html {
         html! {
-            <>
-        <div id="setting_modal" class="modal">
-          <div class="modal-content">
-              <div class="row">
-                <form class="col s12">
-                  <div class="row">
-                    <div class="input-field col s6">
-                      <input id="port" type="text" value={self.port.clone()} oninput=self.link.callback(|e: InputData| Msg::UpdatePort(e.value))/>
-                      <label class="active" for="port">{ "Server Port" }</label>
-                    </div>
-                  </div>
-                </form>
-              </div>
-          </div>
-        </div>
-        </>
-              }
+        <Settings/>
+          }
     }
     fn content(&self) -> Html {
         let _tags: Vec<&str> = vec![];
@@ -497,6 +665,9 @@ pub enum AppRouter {
 
 pub enum Msg {
     Search(String),
+    RemoveIgnoreDomains(String),
+    UpdateIgnoreDomains(String),
+    IgnoreStrings(String),
     Pin(String),
     Unpin(String),
     UpdatePort(String),

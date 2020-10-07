@@ -219,7 +219,35 @@ async fn facet_request(web::Query(info): web::Query<FacetRequest>) -> web::Json<
     web::Json(facets(info.facet, field))
 }
 
-async fn index(req: HttpRequest) -> Result<NamedFile> {
+#[derive(Serialize, Debug, Deserialize, Default)]
+pub struct UpdateSystemSettings {
+    port: Option<String>,
+    ignore_domains: Option<Vec<String>>,
+    ignore_strings: Option<Vec<String>>,
+}
+async fn update_settings(
+    web::Query(info): web::Query<UpdateSystemSettings>,
+) -> web::Json<indexer::SystemSettings> {
+    let mut settings = indexer::read_settings();
+    if let Some(port) = info.port {
+        settings.port = port.clone();
+    }
+    if let Some(ignore_domains) = info.ignore_domains {
+        settings.ignore_domains = ignore_domains.clone();
+    }
+
+    if let Some(ignore_strings) = info.ignore_strings {
+        settings.ignore_strings = ignore_strings.clone();
+    }
+    indexer::write_settings(&settings);
+    web::Json(settings)
+}
+
+async fn get_settings() -> web::Json<indexer::SystemSettings> {
+    web::Json(indexer::read_settings())
+}
+
+async fn filesystem(req: HttpRequest) -> Result<NamedFile> {
     let name = req.match_info().query("filename");
     let name = name.replace("/", ""); // try not to leave the dir
     let name = format!("{}/{}", "search/dist", name);
@@ -235,17 +263,13 @@ async fn main() -> std::io::Result<()> {
         std::env::set_var("RUST_LOG", "actix_web=debug");
         env_logger::init();
     }
-    let port = opt.port.unwrap_or_else(|| "7172".to_string());
+    let port = opt.port.unwrap_or_else(|| indexer::read_settings().port);
     HttpServer::new(|| {
         App::new()
             .wrap(
-                Cors::new() // <- Construct CORS middleware builder
-                    .allowed_origin("http://localhost:1234")
-                    .allowed_origin("http://localhost:1234/")
-                    .allowed_origin("http://localhost:7274/")
-                    .allowed_origin("http://localhost:7274")
+                // not sure i need this if severing from here
+                Cors::new()
                     .allowed_origin("http://localhost")
-                    //.allowed_methods(vec!["GET", "POST"])
                     .max_age(3600)
                     .finish(),
             )
@@ -255,6 +279,12 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::resource("/search")
                     .route(web::get().to(search_request))
+                    .route(web::head().to(HttpResponse::MethodNotAllowed)),
+            )
+            .service(
+                web::resource("/settings")
+                    .route(web::get().to(get_settings))
+                    //.route(web::post().to(update_settings))
                     .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
             .service(
@@ -268,7 +298,7 @@ async fn main() -> std::io::Result<()> {
                     .route(web::get().to(facet_request))
                     .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
-            .service(web::resource("/{filename:.*}").route(web::get().to(index)))
+            .service(web::resource("/{filename:.*}").route(web::get().to(filesystem)))
     })
     .bind(&format!("127.0.0.1:{}", port))?
     .run()
