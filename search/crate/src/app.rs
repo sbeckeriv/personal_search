@@ -669,6 +669,7 @@ impl App {
         </>
         }
     }
+
     fn header(&self) -> Html {
         html! {
         <>
@@ -676,7 +677,6 @@ impl App {
         <nav class="top-nav">
                 <div class="nav-wrapper">
                     <a href="#" data-target="slide-out" class="sidenav-trigger brand-logo"><i class="material-icons">{"menu"}</i></a>
-                    <form>
                     <div class="input-field">
                         <input id="search" type="search" autocomplete="off" required=true value={self.search.clone()} oninput=self.link.callback(|e: InputData| Msg::Search(e.value))/>
                         <label class="label-icon" for="search"><i class="material-icons">{"search"}</i></label>
@@ -684,7 +684,6 @@ impl App {
                      <a class="btn-floating btn-large halfway-fab waves-effect waves-light teal modal-trigger" href="#setting_modal">
                         <i class="material-icons">{"settings"}</i>
                       </a>
-                </form>
                 </div>
         </nav>
         </header>
@@ -692,16 +691,6 @@ impl App {
         </>
                     }
     }
-}
-
-#[derive(Switch, Debug, Clone)]
-pub enum AppRouter {
-    #[to = "/!"]
-    RootPath,
-    #[to = "/about!"]
-    AboutPath,
-    #[to = "/page-not-found"]
-    PageNotFound(Permissive<String>),
 }
 
 pub enum Msg {
@@ -747,6 +736,9 @@ impl Component for App {
             Msg::FetchReady(response) => {
                 self.fetching = false;
                 self.network_task = None;
+            }
+            Msg::Ignore => {
+                return false;
             }
             _ => {}
         }
