@@ -94,91 +94,94 @@ fn search(query: String) -> Vec<SearchJson> {
 
     let query_parser = QueryParser::new(index.schema(), default_fields, index.tokenizers().clone());
 
-    let query = query_parser.parse_query(&query).expect("query parse");
-    let top_docs = searcher
-        .search(&query, &TopDocs::with_limit(10))
-        .expect("serach");
-    let schema = index.schema();
-    top_docs
-        .iter()
-        .map(|doc| {
-            let retrieved_doc = searcher.doc(doc.1).expect("doc");
-            let mut m = HashMap::new();
-            for f in retrieved_doc.field_values().iter() {
-                m.entry(schema.get_field_name(f.field()))
-                    .or_insert_with(Vec::new)
-                    .push(f.value())
-            }
+    if let Ok(query) = query_parser.parse_query(&query) {
+        let top_docs = searcher
+            .search(&query, &TopDocs::with_limit(10))
+            .expect("serach");
+        let schema = index.schema();
+        top_docs
+            .iter()
+            .map(|doc| {
+                let retrieved_doc = searcher.doc(doc.1).expect("doc");
+                let mut m = HashMap::new();
+                for f in retrieved_doc.field_values().iter() {
+                    m.entry(schema.get_field_name(f.field()))
+                        .or_insert_with(Vec::new)
+                        .push(f.value())
+                }
 
-            SearchJson {
-                title: m
-                    .get("title")
-                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                    .unwrap_or("")
-                    .to_string(),
+                SearchJson {
+                    title: m
+                        .get("title")
+                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                        .unwrap_or("")
+                        .to_string(),
 
-                url: m
-                    .get("url")
-                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                    .unwrap_or("")
-                    .to_string(),
-                summary: m
-                    .get("summary")
-                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                    .unwrap_or("")
-                    .to_string(),
-                description: m
-                    .get("description")
-                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                    .unwrap_or("")
-                    .to_string(),
-                added_at: m
-                    .get("added_at")
-                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                    .unwrap_or("")
-                    .to_string(),
-                last_accessed_at: m
-                    .get("last_accessed_at")
-                    .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                    .unwrap_or("")
-                    .to_string(),
+                    url: m
+                        .get("url")
+                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                        .unwrap_or("")
+                        .to_string(),
+                    summary: m
+                        .get("summary")
+                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                        .unwrap_or("")
+                        .to_string(),
+                    description: m
+                        .get("description")
+                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                        .unwrap_or("")
+                        .to_string(),
+                    added_at: m
+                        .get("added_at")
+                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                        .unwrap_or("")
+                        .to_string(),
+                    last_accessed_at: m
+                        .get("last_accessed_at")
+                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                        .unwrap_or("")
+                        .to_string(),
 
-                keywords: m
-                    .get("keywords")
-                    .map(|t| {
-                        t.iter()
-                            .map(|ff| ff.text().unwrap_or("").to_string())
-                            .collect()
-                    })
-                    .unwrap_or_default(),
+                    keywords: m
+                        .get("keywords")
+                        .map(|t| {
+                            t.iter()
+                                .map(|ff| ff.text().unwrap_or("").to_string())
+                                .collect()
+                        })
+                        .unwrap_or_default(),
 
-                tags: m
-                    .get("keywords")
-                    .map(|t| {
-                        t.iter()
-                            .map(|ff| ff.text().unwrap_or("").to_string())
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-                bookmarked: m
-                    .get("bookmarked")
-                    .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-                    .unwrap_or(0),
-                pinned: m
-                    .get("pinned")
-                    .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-                    .unwrap_or(0),
-                duplicate: m
-                    .get("duplicate")
-                    .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-                    .unwrap_or(0),
-                accessed_count: m
-                    .get("accessed_count")
-                    .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-                    .unwrap_or(0),
-            }
-        })
-        .collect()
+                    tags: m
+                        .get("keywords")
+                        .map(|t| {
+                            t.iter()
+                                .map(|ff| ff.text().unwrap_or("").to_string())
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    bookmarked: m
+                        .get("bookmarked")
+                        .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                        .unwrap_or(0),
+                    pinned: m
+                        .get("pinned")
+                        .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                        .unwrap_or(0),
+                    duplicate: m
+                        .get("duplicate")
+                        .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                        .unwrap_or(0),
+                    accessed_count: m
+                        .get("accessed_count")
+                        .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+                        .unwrap_or(0),
+                }
+            })
+            .collect()
+    } else {
+        vec![]
+    }
 }
 
 #[derive(Debug, Deserialize)]
