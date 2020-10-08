@@ -56,6 +56,13 @@ impl Default for SystemSettings {
     }
 }
 
+lazy_static::lazy_static! {
+    pub static ref CACHEDCONFIG: SystemSettings = read_settings();
+}
+pub fn cached_config_domains() -> Vec<String> {
+    CACHEDCONFIG.ignore_domains.clone()
+}
+
 pub fn write_settings(config: &SystemSettings) {
     let path_name = ".private_search/server_settings.toml".to_string();
     let mut s = String::new();
@@ -64,9 +71,9 @@ pub fn write_settings(config: &SystemSettings) {
         .write(true)
         .create(true)
         .open(&path_name);
-
     file.expect("setting filewrite")
-        .write_all(toml::to_string(&config).unwrap().as_bytes());
+        .write_all(toml::to_string(&config).unwrap().as_bytes())
+        .expect("file");
 }
 
 pub fn read_settings() -> SystemSettings {
@@ -252,32 +259,11 @@ pub struct UrlMeta {
 
 pub fn url_skip(url: &str) -> bool {
     // lazy static this
-
     let parsed = reqwest::Url::parse(&url).expect("url pase");
-
-    let ignore_includes = vec![
-        "//127.0.0.1",
-        "//192.168.",
-        ".lvh.me",
-        "//0.0.0.0",
-        "//lvh.me",
-        "//localhost/",
-        "//localhost:",
-        "google.com/",
-        "youtube.com/",
-        "ebay.com/",
-        "aha.io/",
-        "newrelic.com/",
-        "datadoghq.com/",
-        "amazon.com/",
-        "woot.com/",
-        "imgur.com",
-        "gstatic.com/",
-    ];
     if !parsed.scheme().starts_with("http") {
         true
     } else {
-        ignore_includes.iter().any(|s| url.contains(s))
+        CACHEDCONFIG.ignore_domains.iter().any(|s| url.contains(s))
     }
 }
 
@@ -341,7 +327,7 @@ pub fn add_hash(domain: &str, hash: u64) {
 
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
-index_writer.wait_merging_threads().expect("merge");
+    index_writer.wait_merging_threads().expect("merge");
 }
 
 pub fn update_cached(url_hash: &str, index: &Index, meta: UrlMeta) {
@@ -381,7 +367,7 @@ pub fn update_cached(url_hash: &str, index: &Index, meta: UrlMeta) {
     let mut index_writer = index.writer(50_000_000).expect("writer");
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
-index_writer.wait_merging_threads().expect("merge");
+    index_writer.wait_merging_threads().expect("merge");
     write_source(url_hash, json);
 }
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
@@ -537,7 +523,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
             let mut index_writer = index.writer(50_000_000).expect("writer");
             index_writer.add_document(doc);
             index_writer.commit().expect("commit");
-index_writer.wait_merging_threads().expect("merge");
+            index_writer.wait_merging_threads().expect("merge");
 
             write_source(&url_hash, json);
         }

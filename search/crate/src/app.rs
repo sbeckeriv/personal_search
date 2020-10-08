@@ -19,7 +19,7 @@ pub struct App {
     network_task: Option<yew::services::fetch::FetchTask>,
 }
 
-#[derive(Serialize, Debug, Deserialize)]
+#[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct SystemSettings {
     pub port: String,
     pub ignore_domains: Vec<String>,
@@ -37,6 +37,50 @@ pub struct Settings {
 }
 //impl FetchJson for Settings {} figure this out with link
 impl Settings {
+    fn post_json(
+        &mut self,
+        binary: bool,
+        url: String,
+        body: &SystemSettings,
+        stored_data: String,
+    ) -> yew::services::fetch::FetchTask {
+        let callback = self
+            .link
+            .callback(move |response: Response<Json<Result<Value, Error>>>| {
+                let (meta, Json(data)) = response.into_parts();
+                if meta.status.is_success() {
+                    Msg::FetchReady((stored_data.clone(), data))
+                } else {
+                    Msg::Ignore // FIXME: Handle this error accordingly.
+                }
+            });
+        let request = Request::post(url)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .body(Json(body))
+            .unwrap();
+        if binary {
+            FetchService::fetch_binary(request, callback).unwrap()
+        } else {
+            FetchService::fetch(request, callback).unwrap()
+        }
+    }
+
+    fn update_settings(&mut self, port: Option<String>) {
+        self.fetching = true;
+        let settings = self.settings.clone();
+        let settings = settings.unwrap();
+
+        self.network_task = Some(self.post_json(
+            false,
+            format!(
+                "http://localhost:{}/settings",
+                port.unwrap_or_else(|| self.port.clone()),
+            ),
+            &settings,
+            "settings".to_string(),
+        ));
+    }
     fn fetch_json(
         &mut self,
         binary: bool,
@@ -74,29 +118,32 @@ impl Settings {
             "settings".to_string(),
         ));
     }
-
+    fn chip_it(&self, chip: &str) -> Html {
+        let domain = chip.clone();
+        let domain = domain.to_string();
+        ConsoleService::log(&format!("{:?}", domain));
+        html! {
+          <div class="chip">
+            { format!("{}", domain.clone()) }
+            <i class="close material-icons" onclick=self.link.callback(move |e: MouseEvent| Msg::RemoveIgnoreDomains(domain.clone()))>{"close"}</i>
+          </div>
+        }
+    }
     fn loaded(&self) -> Html {
         if let Some(settings) = self.settings.as_ref() {
+            ConsoleService::log(&format!("{:?}", settings));
             html! {<>
               <div class="row">
-                <div class="input-field col s6">
                   <div class="cliplist">
-                    { settings.ignore_domains.iter().map(|d|{
-                                                                let domain = d.clone();
-                                                                html!{
-                                                                  <div class="chip">
-                                                                    {format!("{}",d.clone())}
-                                                                    <i class="close material-icons" onclick=self.link.callback(move |e: MouseEvent| Msg::RemoveIgnoreDomains(domain.clone()))>{"close"}</i>
-                                                                  </div>
-                                                                }
-                                                            }).collect::<Html>() }
+                    { settings.ignore_domains.iter().map(|d| self.chip_it(d)).collect::<Html>() }
                   </div>
+                <div class="input-field col s12">
                   <input id="ignore_domains" type="text" value=self.new_ignore_domains.clone() oninput=self.link.callback(|e: InputData| Msg::UpdateIgnoreDomains(e.value))/>
                   <label class="active" for="ignore_domains">{ "Ignore domains (space adds it to the list)" }</label>
                 </div>
               </div>
               <div class="row">
-                <div class="input-field col s6">
+                <div class="input-field col s12">
                   <input id="ignore_strings" type="text" value={settings.ignore_strings.join(", ")} oninput=self.link.callback(|e: InputData| Msg::IgnoreStrings(e.value))/>
                   <label class="active" for="ignore_strings">{ "Ignore strings (csv list)" }</label>
                 </div>
@@ -159,7 +206,8 @@ impl Component for Settings {
             Msg::UpdateIgnoreDomains(string) => {
                 if string.ends_with(" ") {
                     if let Some(mut settings) = self.settings.as_mut() {
-                        settings.ignore_domains.push(string);
+                        settings.ignore_domains.push(string.trim().to_string());
+                        self.update_settings(None);
                     }
                     self.new_ignore_domains = String::new();
                 } else {
@@ -170,6 +218,7 @@ impl Component for Settings {
             Msg::RemoveIgnoreDomains(string) => {
                 if let Some(mut settings) = self.settings.as_mut() {
                     settings.ignore_domains.retain(|x| x != &string);
+                    self.update_settings(None);
                 }
             }
 

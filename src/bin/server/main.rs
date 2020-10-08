@@ -226,17 +226,17 @@ pub struct UpdateSystemSettings {
     ignore_strings: Option<Vec<String>>,
 }
 async fn update_settings(
-    web::Query(info): web::Query<UpdateSystemSettings>,
+    info: web::Json<UpdateSystemSettings>,
 ) -> web::Json<indexer::SystemSettings> {
     let mut settings = indexer::read_settings();
-    if let Some(port) = info.port {
+    if let Some(port) = &info.port {
         settings.port = port.clone();
     }
-    if let Some(ignore_domains) = info.ignore_domains {
+    if let Some(ignore_domains) = &info.ignore_domains {
         settings.ignore_domains = ignore_domains.clone();
     }
 
-    if let Some(ignore_strings) = info.ignore_strings {
+    if let Some(ignore_strings) = &info.ignore_strings {
         settings.ignore_strings = ignore_strings.clone();
     }
     indexer::write_settings(&settings);
@@ -264,13 +264,16 @@ async fn main() -> std::io::Result<()> {
         env_logger::init();
     }
     let port = opt.port.unwrap_or_else(|| indexer::read_settings().port);
-    HttpServer::new(|| {
+    let server_port = port.clone();
+    HttpServer::new(move || {
         App::new()
             .wrap(
                 // not sure i need this if severing from here
                 Cors::new()
                     .allowed_origin("http://localhost")
+                    .allowed_origin(&format!("http://localhost:{}", &port.clone()))
                     .max_age(3600)
+                    .allowed_methods(vec!["GET", "POST", "PUT"])
                     .finish(),
             )
             // enable logger
@@ -284,7 +287,7 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::resource("/settings")
                     .route(web::get().to(get_settings))
-                    //.route(web::post().to(update_settings))
+                    .route(web::post().to(update_settings))
                     .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
             .service(
@@ -300,7 +303,7 @@ async fn main() -> std::io::Result<()> {
             )
             .service(web::resource("/{filename:.*}").route(web::get().to(filesystem)))
     })
-    .bind(&format!("127.0.0.1:{}", port))?
+    .bind(&format!("127.0.0.1:{}", server_port))?
     .run()
     .await
 }
