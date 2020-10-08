@@ -121,9 +121,10 @@ impl Settings {
     fn chip_it(&self, chip: &str) -> Html {
         let domain = chip.clone();
         let domain = domain.to_string();
+        let id = format!("chip-{}", domain);
         ConsoleService::log(&format!("{:?}", domain));
         html! {
-          <div class="chip">
+          <div class="chip" id=id>
             { format!("{}", domain.clone()) }
             <i class="close material-icons" onclick=self.link.callback(move |e: MouseEvent| Msg::RemoveIgnoreDomains(domain.clone()))>{"close"}</i>
           </div>

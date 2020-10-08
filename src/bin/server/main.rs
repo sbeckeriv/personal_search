@@ -77,7 +77,7 @@ struct SearchJson {
     added_at: String,
     last_accessed_at: String,
 }
-fn search(query: String) -> Vec<SearchJson> {
+fn search(query: String, limit: usize) -> Vec<SearchJson> {
     let index = indexer::search_index().expect("could not open search index");
     let searcher = indexer::searcher(&index);
     let default_fields: Vec<tantivy::schema::Field> = index
@@ -96,7 +96,7 @@ fn search(query: String) -> Vec<SearchJson> {
 
     if let Ok(query) = query_parser.parse_query(&query) {
         let top_docs = searcher
-            .search(&query, &TopDocs::with_limit(10))
+            .search(&query, &TopDocs::with_limit(limit))
             .expect("serach");
         let schema = index.schema();
         top_docs
@@ -187,6 +187,7 @@ fn search(query: String) -> Vec<SearchJson> {
 #[derive(Debug, Deserialize)]
 pub struct SearchRequest {
     q: String,
+    limit: Option<usize>,
 }
 
 /// This handler uses json extractor
@@ -194,7 +195,10 @@ async fn search_request(
     web::Query(info): web::Query<SearchRequest>,
 ) -> web::Json<HashMap<String, Vec<SearchJson>>> {
     let mut m = HashMap::new();
-    m.insert("results".to_string(), search(info.q));
+    m.insert(
+        "results".to_string(),
+        search(info.q, info.limit.unwrap_or(20)),
+    );
     web::Json(m)
 }
 
