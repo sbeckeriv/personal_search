@@ -341,6 +341,7 @@ impl Component for SearchResults {
                         self.fetch_search(&self.search.clone())
                     }
                 } else {
+                    self.search_json = None;
                     self.fetching = false;
                     self.queued_search = None;
                     self.network_task = None;
@@ -445,7 +446,8 @@ impl SearchResults {
     }
 
     fn loading_html(&self) -> Html {
-        if self.fetching {
+        if false {
+            //self.fetching {
             html! {
               <div class="progress">
                   <div class="indeterminate"></div>
@@ -649,17 +651,6 @@ impl App {
         }
     }
 
-    fn loading_html(&self) -> Html {
-        if self.fetching {
-            html! {
-              <div class="progress">
-                  <div class="indeterminate"></div>
-              </div>
-            }
-        } else {
-            html! {<></>}
-        }
-    }
     fn setting_modal(&self) -> Html {
         html! {
         <Settings/>
@@ -670,7 +661,7 @@ impl App {
 
         html! {
         <>
-        <div class="row">
+        <div class="row results">
             <div class="col s11">
                 <SearchResults search_input=self.search.clone()/>
             </div>
