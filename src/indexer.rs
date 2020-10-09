@@ -51,6 +51,11 @@ impl Default for SystemSettings {
                 "woot.com/".to_string(),
                 "imgur.com".to_string(),
                 "gstatic.com/".to_string(),
+                ".pdf$".to_string(),
+                ".png$".to_string(),
+                ".jpg$".to_string(),
+                ".js$".to_string(),
+                ".css$".to_string(),
             ],
         }
     }
@@ -232,7 +237,23 @@ pub fn get_url(url: &str) -> Result<String, reqwest::Error> {
         .timeout(Duration::from_secs(10))
         .build()?;
     let res = client.get(url).send()?;
-    let body = res.text()?;
+    let headers = res.headers();
+
+    let body = if let Some(content_type) = headers.get("Content-Type") {
+        let lower = content_type.to_str().unwrap_or("");
+        dbg!(&lower);
+        let lower = lower.to_lowercase();
+        if lower == ""
+            || lower.contains("html")
+            || (lower.contains("text") && !lower.contains("javascript"))
+        {
+            res.text()?
+        } else {
+            "".to_string()
+        }
+    } else {
+        "".to_string()
+    };
 
     Ok(body)
 }
@@ -264,7 +285,15 @@ pub fn url_skip(url: &str) -> bool {
     if !parsed.scheme().starts_with("http") {
         true
     } else {
-        CACHEDCONFIG.ignore_domains.iter().any(|s| url.contains(s))
+        CACHEDCONFIG.ignore_domains.iter().any(|s| {
+            if s.ends_with("$") {
+                let mut x = s.clone();
+                x.pop();
+                url.ends_with(&x)
+            } else {
+                url.contains(s)
+            }
+        })
     }
 }
 
