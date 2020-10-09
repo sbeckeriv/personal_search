@@ -31,7 +31,7 @@ fn set_attribute(url: &String, field: String, value: i8) {
         "pinned" => {
             meta.pinned = Some(value.into());
         }
-        "hidden" => {
+        "hide" => {
             meta.hidden = Some(value.into());
         }
         _ => {}
@@ -137,7 +137,7 @@ fn doc_to_json(retrieved_doc: &tantivy::Document, schema: &tantivy::schema::Sche
             .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
             .unwrap_or("")
             .to_string(),
-
+        //no longer real
         keywords: m
             .get("keywords")
             .map(|t| {
@@ -257,6 +257,7 @@ async fn attribute_request(
     }
     set_attribute(&info.url, info.field, info.value);
 
+    let index = indexer::search_index().expect("could not open search index");
     if let Some(doc_address) = indexer::find_url(&info.url, &index) {
         let searcher = indexer::searcher(&index);
         let schema = index.schema();
@@ -274,7 +275,7 @@ pub struct FacetRequest {
 }
 
 async fn facet_request(web::Query(info): web::Query<FacetRequest>) -> web::Json<Vec<FacetCount>> {
-    let field = info.facet_field.unwrap_or_else(|| "keywords".to_string());
+    let field = info.facet_field.unwrap_or_else(|| "tags".to_string());
     web::Json(facets(info.facet, field))
 }
 

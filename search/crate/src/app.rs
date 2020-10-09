@@ -298,6 +298,7 @@ pub struct SearchResults {
     search_json: Option<SearchArray>,
     link: ComponentLink<Self>,
     search: String,
+    new_tag: String,
     port: String,
     queued_search: Option<String>,
     fetching: bool,
@@ -324,6 +325,7 @@ impl Component for SearchResults {
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
             queued_search: None,
+            new_tag: String::new(),
             fetching: false,
             network_task: None,
             pin_task: None,
@@ -353,6 +355,16 @@ impl Component for SearchResults {
             Msg::HideDomain(string) => self.remote_set_attribute(&string, &"hide_domain", 1),
             Msg::UpdatePort(string) => {
                 self.port = string;
+            }
+
+            Msg::Tag(change) => {
+                let (url, tag) = change;
+                if tag.ends_with(' ') {
+                    self.remote_set_tag(&url, &tag);
+                    self.new_tag = String::new();
+                } else {
+                    self.new_tag = tag;
+                }
             }
             Msg::Search(search_string) => {
                 self.search = search_string;
@@ -430,6 +442,20 @@ impl SearchResults {
         ));
     }
 
+    fn remote_set_tag(&mut self, url: &str, tag: &str) {
+        let urlencoded: String = byte_serialize(url.as_bytes()).collect();
+        let urlencoded_tag: String = byte_serialize(tag.as_bytes()).collect();
+        // cause "debounce" the js kills the request the server still processes them
+        self.pin_task = Some(self.fetch_json(
+            false,
+            format!(
+                "http://localhost:{}/tag?url={}&field=tag&value={}",
+                self.port, urlencoded, urlencoded_tag
+            ),
+            format!("set_tag"),
+        ));
+    }
+
     fn remote_set_attribute(&mut self, url: &str, field: &str, value: i64) {
         let urlencoded: String = byte_serialize(url.as_bytes()).collect();
         // cause "debounce" the js kills the request the server still processes them
@@ -489,7 +515,7 @@ impl SearchResults {
             <p> {&obj.description} <br/>
             {&obj.summary}
             <br/>
-            { obj.keywords.iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
+            { obj.tags.iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
             </p>
 
             { self.pinned(&obj.pinned, obj.url.clone()) }
@@ -499,15 +525,24 @@ impl SearchResults {
         }
     }
 
-    fn menu(&self, _url: &str, id: &str) -> Html {
+    fn menu(&self, url: &str, id: &str) -> Html {
+        let base_url = url.clone();
+        let base_url = base_url.to_string();
+
+        let base2_url = url.clone();
+        let base2_url = base2_url.to_string();
+
+        let base3_url = url.clone();
+        let base3_url = base3_url.to_string();
         html! {
             <>
                 <a class="dropdown-trigger secondary-content" href="#" data-target=format!("dropdown-{}",id)><i class="material-icons">{"arrow_drop_down"}</i> </a>
 
                 <ul id=format!("dropdown-{}",id) class="dropdown-content">
-                    <li><a href="#!">{"hide url"}</a></li>
-                    <li><a href="#!">{"hide domain"}</a></li>
-                    <li><a href="#!">{"filter to domain"}</a></li>
+                    <li><a href="#!" onclick=self.link.callback(move |e| Msg::Hide(base_url.clone())) >{"hide url"}</a></li>
+                    <li><a href="#!" onclick=self.link.callback(move |e| Msg::HideDomain(base2_url.clone())) >{"hide domain"}</a></li>
+                    <li> <input id="add_tag" type="text" placeholder="Add Tag" value=self.new_tag.clone()
+                    oninput=self.link.callback(move |e: InputData| Msg::Tag((base3_url.clone(), e.value)))/> </li>
                 </ul>
             </>
         }
@@ -589,7 +624,7 @@ impl SearchResults {
                 <script>
                 {"
                    var elems = document.querySelectorAll('.dropdown-trigger');
-                   var instances = M.Dropdown.init(elems, {constrainWidth: false, container: document.querySelectorAll('.results')});
+                   var instances = M.Dropdown.init(elems, {closeOnClick: false, constrainWidth: false, container: document.querySelectorAll('.results')});
                    "}
                 </script>
                     </>
@@ -749,6 +784,8 @@ pub enum Msg {
     UpdatePort(String),
     SearchTerms(String),
     Hide(String),
+    Tag((String, String)),
+    Untag((String, String)),
     HideDomain(String),
     FetchReady((String, Result<Value, Error>)),
     Ignore,
