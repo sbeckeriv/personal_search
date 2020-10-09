@@ -277,6 +277,7 @@ pub struct UrlMeta {
     pub keywords: Option<Vec<String>>,
     pub pinned: Option<i64>,
     pub access_count: Option<i64>,
+    pub hidden: Option<i64>,
 }
 
 pub fn url_skip(url: &str) -> bool {
@@ -297,7 +298,7 @@ pub fn url_skip(url: &str) -> bool {
     }
 }
 
-fn md5_hash(domain: &str) -> String {
+pub fn md5_hash(domain: &str) -> String {
     let digest = md5::compute(domain.as_bytes());
     format!("{:x}", digest)
 }
@@ -346,7 +347,6 @@ pub fn add_hash(domain: &str, hash: u64) {
             index.schema().get_field("domain").expect("domain"),
             &domain_hash,
         );
-
         doc
     };
 
@@ -378,6 +378,10 @@ pub fn update_cached(url_hash: &str, index: &Index, meta: UrlMeta) {
 
     if let Some(pinned) = meta.pinned {
         *json.get_mut("pinned").unwrap() = json!(vec![pinned]);
+    }
+
+    if let Some(hidden) = meta.hidden {
+        *json.get_mut("hidden").unwrap() = json!(vec![hidden]);
     }
 
     if let Some(accessed_count) = meta.access_count {
@@ -670,7 +674,7 @@ pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
     }
     false
 }
-
+// move over to id hash
 pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAddress> {
     let searcher = searcher(&index);
     let query_parser = QueryParser::for_index(

@@ -25,8 +25,22 @@ pub struct Opt {
     search_folder_path: Option<PathBuf>,
 }
 
-fn set_attribute(_url: String, _field: String, _value: i8) {
-    //indexer::pin_url(&url, pin);
+fn set_attribute(url: &String, field: String, value: i8) {
+    let mut meta = indexer::UrlMeta::default();
+    match field.as_str() {
+        "pinned" => {
+            meta.pinned = Some(value.into());
+        }
+        "hidden" => {
+            meta.hidden = Some(value.into());
+        }
+        _ => {}
+    }
+
+    let index = indexer::search_index().expect("could not open search index");
+    let url_hash = indexer::md5_hash(url);
+
+    indexer::update_cached(&url_hash, &index, meta);
 }
 
 #[derive(Serialize)]
@@ -78,6 +92,88 @@ struct SearchJson {
     added_at: String,
     last_accessed_at: String,
 }
+fn doc_to_json(retrieved_doc: &tantivy::Document, schema: &tantivy::schema::Schema) -> SearchJson {
+    let mut m = HashMap::new();
+    for f in retrieved_doc.field_values().iter() {
+        m.entry(schema.get_field_name(f.field()))
+            .or_insert_with(Vec::new)
+            .push(f.value())
+    }
+
+    SearchJson {
+        id: m
+            .get("id")
+            .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+            .unwrap_or("")
+            .to_string(),
+        title: m
+            .get("title")
+            .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+            .unwrap_or("")
+            .to_string(),
+
+        url: m
+            .get("url")
+            .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+            .unwrap_or("")
+            .to_string(),
+        summary: m
+            .get("summary")
+            .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+            .unwrap_or("")
+            .to_string(),
+        description: m
+            .get("description")
+            .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+            .unwrap_or("")
+            .to_string(),
+        added_at: m
+            .get("added_at")
+            .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+            .unwrap_or("")
+            .to_string(),
+        last_accessed_at: m
+            .get("last_accessed_at")
+            .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+            .unwrap_or("")
+            .to_string(),
+
+        keywords: m
+            .get("keywords")
+            .map(|t| {
+                t.iter()
+                    .map(|ff| ff.text().unwrap_or("").to_string())
+                    .collect()
+            })
+            .unwrap_or_default(),
+
+        tags: m
+            .get("keywords")
+            .map(|t| {
+                t.iter()
+                    .map(|ff| ff.text().unwrap_or("").to_string())
+                    .collect()
+            })
+            .unwrap_or_default(),
+        bookmarked: m
+            .get("bookmarked")
+            .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+            .unwrap_or(0),
+        pinned: m
+            .get("pinned")
+            .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+            .unwrap_or(0),
+        duplicate: m
+            .get("duplicate")
+            .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+            .unwrap_or(0),
+        accessed_count: m
+            .get("accessed_count")
+            .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+            .unwrap_or(0),
+    }
+}
+
 fn search(query: String, limit: usize) -> Vec<SearchJson> {
     let index = indexer::search_index().expect("could not open search index");
     let searcher = indexer::searcher(&index);
@@ -100,89 +196,12 @@ fn search(query: String, limit: usize) -> Vec<SearchJson> {
             .search(&query, &TopDocs::with_limit(limit))
             .expect("serach");
         let schema = index.schema();
+
         top_docs
             .iter()
             .map(|doc| {
                 let retrieved_doc = searcher.doc(doc.1).expect("doc");
-                let mut m = HashMap::new();
-                for f in retrieved_doc.field_values().iter() {
-                    m.entry(schema.get_field_name(f.field()))
-                        .or_insert_with(Vec::new)
-                        .push(f.value())
-                }
-
-                SearchJson {
-                    id: m
-                        .get("id")
-                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                        .unwrap_or("")
-                        .to_string(),
-                    title: m
-                        .get("title")
-                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                        .unwrap_or("")
-                        .to_string(),
-
-                    url: m
-                        .get("url")
-                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                        .unwrap_or("")
-                        .to_string(),
-                    summary: m
-                        .get("summary")
-                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                        .unwrap_or("")
-                        .to_string(),
-                    description: m
-                        .get("description")
-                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                        .unwrap_or("")
-                        .to_string(),
-                    added_at: m
-                        .get("added_at")
-                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                        .unwrap_or("")
-                        .to_string(),
-                    last_accessed_at: m
-                        .get("last_accessed_at")
-                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
-                        .unwrap_or("")
-                        .to_string(),
-
-                    keywords: m
-                        .get("keywords")
-                        .map(|t| {
-                            t.iter()
-                                .map(|ff| ff.text().unwrap_or("").to_string())
-                                .collect()
-                        })
-                        .unwrap_or_default(),
-
-                    tags: m
-                        .get("keywords")
-                        .map(|t| {
-                            t.iter()
-                                .map(|ff| ff.text().unwrap_or("").to_string())
-                                .collect()
-                        })
-                        .unwrap_or_default(),
-                    bookmarked: m
-                        .get("bookmarked")
-                        .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-                        .unwrap_or(0),
-                    pinned: m
-                        .get("pinned")
-                        .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-                        .unwrap_or(0),
-                    duplicate: m
-                        .get("duplicate")
-                        .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-                        .unwrap_or(0),
-                    accessed_count: m
-                        .get("accessed_count")
-                        .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-                        .unwrap_or(0),
-                }
+                doc_to_json(&retrieved_doc, &schema)
             })
             .collect()
     } else {
@@ -216,9 +235,36 @@ pub struct AttributeRequest {
 }
 async fn attribute_request(
     web::Query(info): web::Query<AttributeRequest>,
-) -> web::Json<Vec<FacetCount>> {
-    set_attribute(info.url, info.field, info.value);
-    web::Json(vec![])
+) -> web::Json<Option<SearchJson>> {
+    // why not just pass info object
+
+    let index = indexer::search_index().expect("could not open search index");
+    let mut index_writer = index.writer(50_000_000).expect("writer");
+    let searcher = indexer::searcher(&index);
+    let schema = index.schema();
+
+    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
+        let retrieved_doc = searcher.doc(doc_address).expect("doc");
+
+        dbg!("old");
+        let old_doc = tantivy::Term::from_field_text(
+            index.schema().get_field("url").expect("domain field"),
+            &info.url,
+        );
+        index_writer.delete_term(old_doc);
+        index_writer.commit().expect("commit");
+        index_writer.wait_merging_threads().expect("merge");
+    }
+    set_attribute(&info.url, info.field, info.value);
+
+    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
+        let searcher = indexer::searcher(&index);
+        let schema = index.schema();
+        let retrieved_doc = searcher.doc(doc_address).expect("doc");
+        web::Json(Some(doc_to_json(&retrieved_doc, &schema)))
+    } else {
+        web::Json(None)
+    }
 }
 
 #[derive(Debug, Deserialize)]

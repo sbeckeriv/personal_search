@@ -159,6 +159,7 @@ fn main() -> tantivy::Result<()> {
                             access_count: Some(place.visit_count),
                             pinned: None,
                             keywords: None,
+                            hidden: None,
                         };
                         Some((place.url, meta, place.id, place.last_visit_date))
                     } else {
