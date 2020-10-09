@@ -64,7 +64,7 @@ use toml::Value;
 fn main() -> tantivy::Result<()> {
     let opt = Opt::from_args();
     let _index = indexer::search_index().unwrap();
-    let place = match opt.db {
+    let place = match opt.db.clone() {
         Some(arg_path) => Some(arg_path),
         None => find_places_file(),
     };
@@ -77,9 +77,7 @@ fn main() -> tantivy::Result<()> {
         .open(&path_name);
 
     match file {
-        Err(_why) => {
-            //println!("couldn't open {}: {}", path_name, why.to_string());
-        }
+        Err(_why) => {}
         Ok(mut file) => {
             if let Err(why) = file.read_to_string(&mut s) {
                 panic!("couldn't read {}: {}", path_name, why)
@@ -95,7 +93,6 @@ fn main() -> tantivy::Result<()> {
 
     match place {
         Some(place_file) => {
-            dbg!(&place_file);
             let conn = Connection::open(place_file).expect("opening sqlite file");
             let mut stmt = conn
                 .prepare("SELECT id, fk, title FROM moz_bookmarks")
@@ -131,49 +128,66 @@ fn main() -> tantivy::Result<()> {
                     })
                 })
                 .expect("place sql");
-            for places in places_iter {
-                let place = places.unwrap();
-                if place.visit_count > 0 && place.hidden == 0 {
-                    //move off of index and on time last_visit_date for updates
-                    if let Some(id_check) = last_id {
-                        if let Some(last) = place.last_visit_date {
-                            if opt.backfill {
-                                // backfill we start with the newest so we want the oldest.
-                                if id_check < last {
-                                    continue;
-                                }
-                            } else {
-                                // move forward in time.
-                                if id_check > last {
-                                    continue;
+            let places = places_iter
+                .map(|record| {
+                    let place = record.unwrap();
+                    if place.visit_count > 0 && place.hidden == 0 {
+                        //move off of index and on time last_visit_date for updates
+                        if let Some(id_check) = last_id {
+                            if let Some(last_visit) = place.last_visit_date {
+                                if opt.backfill {
+                                    // backfill we start with the newest so we want the oldest.
+                                    if id_check < last_visit {
+                                        return None;
+                                    }
+                                } else {
+                                    // move forward in time.
+                                    if id_check > last_visit {
+                                        return None;
+                                    }
                                 }
                             }
                         }
-                    }
-                    if place.id % 10 == 0 {
-                        if let Some(last) = place.last_visit_date {
-                            let mut file = OpenOptions::new()
-                                .truncate(true)
-                                .write(true)
-                                .create(true)
-                                .open(&path_name)
-                                .expect("cache file");
 
-                            file.write_all(format!("last_id = {}", last).as_bytes());
-                        }
+                        let meta = indexer::UrlMeta {
+                            url: Some(place.url.clone()),
+                            title: place.title,
+                            bookmarked: Some(bookmarks.contains(&place.id)),
+                            last_visit: place
+                                .last_visit_date
+                                .map(|num| Utc.timestamp(num / 1000000, 0)),
+                            access_count: Some(place.visit_count),
+                            pinned: None,
+                            keywords: None,
+                        };
+                        Some((place.url, meta, place.id, place.last_visit_date))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            // first run only the last 1000 urls
+            let places = if last_id.is_none() {
+                places.iter().take(1000)
+            } else {
+                places.iter().take(1000000)
+            };
+
+            for record in places.rev() {
+                if let Some((url, meta, id, raw_date)) = record {
+                    if let Some(date) = raw_date {
+                        let mut file = OpenOptions::new()
+                            .truncate(true)
+                            .write(true)
+                            .create(true)
+                            .open(&path_name)
+                            .expect("cache file");
+
+                        file.write_all(format!("last_id = {}", date).as_bytes());
                     }
 
-                    let meta = indexer::UrlMeta {
-                        title: place.title,
-                        bookmarked: Some(bookmarks.contains(&place.id)),
-                        last_visit: place
-                            .last_visit_date
-                            .map(|num| Utc.timestamp(num / 1000000, 0)),
-                        access_count: Some(place.visit_count),
-                        pinned: None,
-                        keywords: None,
-                    };
-                    indexer::index_url(place.url, meta, None)
+                    indexer::index_url(url.to_string(), meta.clone(), None);
                 }
             }
         }

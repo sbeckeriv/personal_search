@@ -249,6 +249,7 @@ pub fn searcher(index: &Index) -> tantivy::LeasedItem<tantivy::Searcher> {
 
 #[derive(Debug, Clone, Default)]
 pub struct UrlMeta {
+    pub url: Option<String>,
     pub title: Option<String>,
     pub bookmarked: Option<bool>,
     pub last_visit: Option<DateTime<Utc>>,
@@ -419,27 +420,34 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
 
                 if !dup {
                     doc.add_text(index.schema().get_field("content").expect("content"), &body);
-
                     let config = SummarizationConfig::default();
+                    if config.device.is_cuda() {
+                        let result = panic::catch_unwind(|| {
+                            let summarization_model =
+                                SummarizationModel::new(config).expect("summarization_model fail");
+                            let input = [body.as_str()];
+                            summarization_model.summarize(&input).join(" ")
+                        });
 
-                    let result = panic::catch_unwind(|| {
-                        let summarization_model =
-                            SummarizationModel::new(config).expect("summarization_model fail");
-                        let input = [body.as_str()];
-                        summarization_model.summarize(&input).join(" ")
-                    });
-
-                    match result {
-                        Ok(results) => {
-                            doc.add_text(
+                        match result {
+                            Ok(results) => {
+                                doc.add_text(
                             index.schema().get_field("summary").expect("summary"),
                             &results.replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "").trim(),
                         );
-                        }
-                        _ => {
-                            println!("sum error");
-                        }
-                    };
+                            }
+                            _ => {
+                                println!("sum error");
+                            }
+                        };
+                    } else {
+                        let mut short_body = body.clone();
+                        short_body.truncate(150);
+                        doc.add_text(
+                            index.schema().get_field("summary").expect("summary"),
+                            &short_body,
+                        );
+                    }
                 } else {
                     doc.add_i64(index.schema().get_field("duplicate").expect("duplicate"), 1);
                 }

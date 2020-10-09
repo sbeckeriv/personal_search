@@ -9,7 +9,26 @@ use yew::format::{Json, Nothing};
 use yew::prelude::*;
 use yew::services::console::ConsoleService;
 use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
-use yew_router::{switch::Permissive, Switch};
+use yew::utils::document;
+
+//https://github.com/JaniM/variant-go-server/blob/4f7b8206f605887a1d0e6bb5a10b6d4ae895e4dd/client/src/utils.rs#L30
+#[macro_export]
+macro_rules! if_html {
+    (let $pat:pat = $cond:expr => $($body:tt)+) => {
+        if let $pat = $cond {
+            html!($($body)+)
+        } else {
+            html!()
+        }
+    };
+    ($cond:expr => $($body:tt)+) => {
+        if $cond {
+            html!($($body)+)
+        } else {
+            html!()
+        }
+    };
+}
 
 pub struct App {
     link: ComponentLink<Self>,
@@ -124,7 +143,7 @@ impl Settings {
         let id = format!("chip-{}", domain);
         ConsoleService::log(&format!("{:?}", domain));
         html! {
-          <div class="chip" id=id>
+          <div class="chip" key=id.clone() id=id>
             { format!("{}", domain.clone()) }
             <i class="close material-icons" onclick=self.link.callback(move |e: MouseEvent| Msg::RemoveIgnoreDomains(domain.clone()))>{"close"}</i>
           </div>
@@ -198,15 +217,15 @@ impl Component for Settings {
         s.fetch_settings(Some(s.port.clone()));
         s
     }
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
         false
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::UpdateIgnoreDomains(string) => {
-                if string.ends_with(" ") {
-                    if let Some(mut settings) = self.settings.as_mut() {
+                if string.ends_with(' ') {
+                    if let Some(settings) = self.settings.as_mut() {
                         settings.ignore_domains.push(string.trim().to_string());
                         self.update_settings(None);
                     }
@@ -217,7 +236,7 @@ impl Component for Settings {
             }
 
             Msg::RemoveIgnoreDomains(string) => {
-                if let Some(mut settings) = self.settings.as_mut() {
+                if let Some(settings) = self.settings.as_mut() {
                     settings.ignore_domains.retain(|x| x != &string);
                     self.update_settings(None);
                 }
@@ -260,6 +279,7 @@ struct SearchArray {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SearchJson {
+    id: String,
     title: String,
     url: String,
     summary: String,
@@ -296,10 +316,10 @@ impl Component for SearchResults {
     fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
         let _empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
 
-        SearchResults {
+        let mut s = SearchResults {
             link,
             search_json: None,
-            search: "".to_string(),
+            search: props.search_input.clone(),
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
@@ -308,7 +328,11 @@ impl Component for SearchResults {
             network_task: None,
             pin_task: None,
             props,
+        };
+        if !s.search.is_empty() {
+            s.update(Msg::Search(s.search.clone()));
         }
+        s
     }
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
         ConsoleService::log(&format!("p{:?}", props));
@@ -412,7 +436,7 @@ impl SearchResults {
         self.pin_task = Some(self.fetch_json(
             false,
             format!(
-                "http://localhost:{}/attrbiute?url={}&field={}&pinned={}",
+                "http://localhost:{}/attributes?url={}&field={}&value={}",
                 self.port, urlencoded, field, value
             ),
             format!("set_{}", field),
@@ -454,7 +478,7 @@ impl SearchResults {
               </div>
             }
         } else {
-            html! {<></>}
+            html!()
         }
     }
 
@@ -470,7 +494,22 @@ impl SearchResults {
 
             { self.pinned(&obj.pinned, obj.url.clone()) }
             { self.bookmarked(&obj.bookmarked) }
+            { self.menu(&obj.url, &obj.id) }
           </li>
+        }
+    }
+
+    fn menu(&self, _url: &str, id: &str) -> Html {
+        html! {
+            <>
+                <a class="dropdown-trigger secondary-content" href="#" data-target=format!("dropdown-{}",id)><i class="material-icons">{"arrow_drop_down"}</i> </a>
+
+                <ul id=format!("dropdown-{}",id) class="dropdown-content">
+                    <li><a href="#!">{"hide url"}</a></li>
+                    <li><a href="#!">{"hide domain"}</a></li>
+                    <li><a href="#!">{"filter to domain"}</a></li>
+                </ul>
+            </>
         }
     }
 
@@ -527,7 +566,7 @@ impl SearchResults {
             string
         };
         if string.is_empty() {
-            html! {<></>}
+            html!()
         } else {
             html! {
                 <div class="chip">
@@ -542,14 +581,21 @@ impl SearchResults {
             self.loading_html()
         } else if let Some(json) = &self.search_json {
             html! {
+                <>
             <ul class="collection">
                 { json.results.iter().map(|i|{ self.search_item_html(&i) }).collect::<Html>() }
             </ul>
+
+                <script>
+                {"
+                   var elems = document.querySelectorAll('.dropdown-trigger');
+                   var instances = M.Dropdown.init(elems, {constrainWidth: false, container: document.querySelectorAll('.results')});
+                   "}
+                </script>
+                    </>
             }
         } else {
-            html! {
-                <></>
-            }
+            html!()
         }
     }
 
@@ -714,9 +760,17 @@ impl Component for App {
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let _empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
+        let mut param_search = "".to_string();
+        if let Some(location) = document().location() {
+            if let Ok(params) = location.search() {
+                ConsoleService::log(&format!("{:?}", params));
+                param_search = params.replace("?q=", "");
+            }
+        }
+
         App {
             link,
-            search: "".to_string(),
+            search: param_search,
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
@@ -733,7 +787,7 @@ impl Component for App {
             Msg::Search(search_string) => {
                 self.search = search_string;
             }
-            Msg::FetchReady(response) => {
+            Msg::FetchReady(_response) => {
                 self.fetching = false;
                 self.network_task = None;
             }

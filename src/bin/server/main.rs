@@ -64,6 +64,7 @@ fn facets(query: String, field: String) -> Vec<FacetCount> {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SearchJson {
+    id: String,
     title: String,
     url: String,
     summary: String,
@@ -111,6 +112,11 @@ fn search(query: String, limit: usize) -> Vec<SearchJson> {
                 }
 
                 SearchJson {
+                    id: m
+                        .get("id")
+                        .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())
+                        .unwrap_or("")
+                        .to_string(),
                     title: m
                         .get("title")
                         .map(|t| t.get(0).map(|f| f.text().unwrap_or("")).unwrap())

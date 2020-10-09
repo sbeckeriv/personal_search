@@ -6,29 +6,34 @@
     <link rel="icon" href="favicon.ico" type="image/x-icon" />
     <title>!!</title>
     <style>
-            body {
-              height: 100%;
-              width: 100%;
-            }
-            .search-pinned{
-              position: absolute !important;
-              right: 40px !important;
-            }
+      body {
+        height: 100%;
+        width: 100%;
+      }
+      .search-pinned {
+        position: absolute !important;
+        right: 40px !important;
+      }
 
-            .collection{
-              background: black !important;
-              color: white !important;
-              border: none !important;
-            }
-            .results{
-              min-height: 2000px;
-            }
-            .collection-item{
-              background: black !important;
-              color: white !important;
-              border: none !important;
-              border-bottom: 1px solid;
-            }
+      .search-bookmarked {
+        position: absolute !important;
+        right: 61px !important;
+      }
+
+      .collection {
+        background: black !important;
+        color: white !important;
+        border: none !important;
+      }
+      .results {
+        min-height: 2000px;
+      }
+      .collection-item {
+        background: black !important;
+        color: white !important;
+        border: none !important;
+        border-bottom: 1px solid;
+      }
     </style>
     <!--Import Google Icon Font-->
     <link
@@ -45,14 +50,13 @@
     <script src="js/index.js"></script>
     <script src="js/materialize.min.js"></script>
     <script>
-    window.onload = (event) => {
-     setTimeout(function() {
-        var elems = document.querySelectorAll(".modal");
-        var instances = M.Modal.init(elems, {});
-     },200);
-    };
+      window.onload = event => {
+        setTimeout(function() {
+          var elems = document.querySelectorAll(".modal");
+          var instances = M.Modal.init(elems, {});
+        }, 200);
+      };
     </script>
   </head>
   <body></body>
-</html>
 </html>
