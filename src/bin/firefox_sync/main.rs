@@ -176,7 +176,7 @@ fn main() -> tantivy::Result<()> {
             };
 
             for record in places.rev() {
-                if let Some((url, meta, id, raw_date)) = record {
+                if let Some((url, meta, _id, raw_date)) = record {
                     if let Some(date) = raw_date {
                         let mut file = OpenOptions::new()
                             .truncate(true)
@@ -185,7 +185,8 @@ fn main() -> tantivy::Result<()> {
                             .open(&path_name)
                             .expect("cache file");
 
-                        file.write_all(format!("last_id = {}", date).as_bytes());
+                        file.write_all(format!("last_id = {}", date).as_bytes())
+                            .expect("ff cache");
                     }
 
                     indexer::index_url(url.to_string(), meta.clone(), None);

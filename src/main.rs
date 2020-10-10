@@ -13,9 +13,10 @@ pub struct Opt {
     import_url: Option<String>,
     #[structopt(long = "facet")]
     facet: Option<String>,
-
     #[structopt(long = "facet_field")]
     facet_field: Option<String>,
+    #[structopt(long = "backfillcached")]
+    backfillcached: bool,
     #[structopt(short = "s", long = "silent")]
     silent: bool,
     #[structopt(short = "v", long = "verbose")]
@@ -115,7 +116,9 @@ fn main() -> tantivy::Result<()> {
 
     match index {
         Ok(index) => {
-            if let Some(query) = opt.query {
+            if opt.backfillcached {
+                indexer::backfill_from_cached();
+            } else if let Some(query) = opt.query {
                 search(query, index);
             } else if let Some(url) = opt.import_url {
                 indexer::index_url(url, indexer::UrlMeta::default(), Some(&index));

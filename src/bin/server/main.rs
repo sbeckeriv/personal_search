@@ -25,7 +25,7 @@ pub struct Opt {
     search_folder_path: Option<PathBuf>,
 }
 
-fn set_attribute(url: &String, field: String, value: i8) {
+fn set_attribute(url: &str, field: String, value: i8) {
     let mut meta = indexer::UrlMeta::default();
     match field.as_str() {
         "pinned" => {
@@ -40,7 +40,7 @@ fn set_attribute(url: &String, field: String, value: i8) {
     let index = indexer::search_index().expect("could not open search index");
     let url_hash = indexer::md5_hash(url);
 
-    indexer::update_cached(&url_hash, &index, meta);
+    //indexer::update_cached(&url_hash, &index, meta);
 }
 
 #[derive(Serialize)]
@@ -236,28 +236,42 @@ pub struct AttributeRequest {
 async fn attribute_request(
     web::Query(info): web::Query<AttributeRequest>,
 ) -> web::Json<Option<SearchJson>> {
-    // why not just pass info object
-
     let index = indexer::search_index().expect("could not open search index");
     let mut index_writer = index.writer(50_000_000).expect("writer");
     let searcher = indexer::searcher(&index);
-    let schema = index.schema();
-
+    dbg!(&info);
     if let Some(doc_address) = indexer::find_url(&info.url, &index) {
-        let retrieved_doc = searcher.doc(doc_address).expect("doc");
-
-        dbg!("old");
+        let id = indexer::md5_hash(&info.url);
+        dbg!(&id);
+        dbg!(&doc_address);
         let old_doc = tantivy::Term::from_field_text(
-            index.schema().get_field("url").expect("domain field"),
-            &info.url,
+            index.schema().get_field("id").expect("domain field"),
+            &id,
         );
         index_writer.delete_term(old_doc);
-        index_writer.commit().expect("commit");
-        index_writer.wait_merging_threads().expect("merge");
+        //    index_writer.commit().expect("commit");
+        //     index_writer.wait_merging_threads().expect("merge");
     }
-    set_attribute(&info.url, info.field, info.value);
+    // why not just pass info object
+    //set_attribute(&info.url, info.field, info.value);
 
-    let index = indexer::search_index().expect("could not open search index");
+    let mut meta = indexer::UrlMeta::default();
+    match info.field.as_str() {
+        "pinned" => {
+            meta.pinned = Some(info.value.into());
+        }
+        "hide" => {
+            meta.hidden = Some(info.value.into());
+        }
+        _ => {}
+    }
+
+    let url_hash = indexer::md5_hash(&info.url);
+
+    indexer::update_cached(&url_hash, &index, meta, &mut index_writer);
+    index_writer.commit().expect("commit");
+    index_writer.wait_merging_threads().expect("merge");
+
     if let Some(doc_address) = indexer::find_url(&info.url, &index) {
         let searcher = indexer::searcher(&index);
         let schema = index.schema();

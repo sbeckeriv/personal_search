@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use glob::glob;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
@@ -64,13 +65,10 @@ impl Default for SystemSettings {
 lazy_static::lazy_static! {
     pub static ref CACHEDCONFIG: SystemSettings = read_settings();
 }
-pub fn cached_config_domains() -> Vec<String> {
-    CACHEDCONFIG.ignore_domains.clone()
-}
 
 pub fn write_settings(config: &SystemSettings) {
     let path_name = ".private_search/server_settings.toml".to_string();
-    let mut s = String::new();
+    let _s = String::new();
     let file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -165,7 +163,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
 
     let mut schema_builder = Schema::builder();
 
-    schema_builder.add_text_field("id", TEXT | STORED);
+    schema_builder.add_text_field("id", STRING | STORED);
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("url", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
@@ -193,43 +191,6 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
             )))
         }
     }
-}
-
-// doesnt work. updates need a full rewrite.
-pub fn pin_url(url: &str, pinned: i8) {
-    let index = search_index().expect("search index");
-    let searcher = searcher(&index);
-    let mut index_writer = index.writer(50_000_000).expect("writer");
-    let query_parser = QueryParser::for_index(
-        &index,
-        vec![index.schema().get_field("url").expect("domain field")],
-    );
-    let query = query_parser
-        .parse_query(&format!("\"{}\"", url))
-        .expect("query parse for domain match");
-
-    let top_docs = searcher
-        .search(&query, &TopDocs::with_limit(1))
-        .expect("search");
-
-    let _doc = if let Some(result) = top_docs.first() {
-        let mut doc = searcher.doc(result.1).expect("doc");
-        let old_doc =
-            Term::from_field_text(index.schema().get_field("url").expect("domain field"), &url);
-        index_writer.delete_term(old_doc);
-
-        dbg!(&doc);
-        doc.add_i64(
-            index.schema().get_field("pinned").expect("pinned"),
-            pinned.into(),
-        );
-        dbg!(index.schema().get_field("pinned").expect("pinned"));
-        dbg!(pinned);
-        dbg!(&doc);
-        index_writer.add_document(doc);
-        index_writer.commit().expect("commit");
-        index_writer.wait_merging_threads().expect("merge");
-    };
 }
 
 pub fn get_url(url: &str) -> Result<String, reqwest::Error> {
@@ -287,7 +248,7 @@ pub fn url_skip(url: &str) -> bool {
         true
     } else {
         CACHEDCONFIG.ignore_domains.iter().any(|s| {
-            if s.ends_with("$") {
+            if s.ends_with('$') {
                 let mut x = s.clone();
                 x.pop();
                 url.ends_with(&x)
@@ -359,8 +320,7 @@ pub fn add_hash(domain: &str, hash: u64) {
     index_writer.commit().expect("commit");
     index_writer.wait_merging_threads().expect("merge");
 }
-
-pub fn update_cached(url_hash: &str, index: &Index, meta: UrlMeta) {
+pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document {
     let json_string = read_source(url_hash);
     let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
     for keyword in meta.keywords.unwrap_or_default() {
@@ -392,16 +352,22 @@ pub fn update_cached(url_hash: &str, index: &Index, meta: UrlMeta) {
         let bookmarked = if bookmarked { 1 } else { 0 };
         *json.get_mut("accessed_count").unwrap() = json!(vec![bookmarked]);
     }
-    let doc = index
+    index
         .schema()
         .parse_document(&json.to_string())
-        .expect("doc from json");
+        .expect("doc from json")
+}
 
+pub fn update_cached(
+    url_hash: &str,
+    index: &Index,
+    meta: UrlMeta,
+    index_writer: &mut tantivy::IndexWriter,
+) {
+    let doc = update_document(url_hash, index, meta);
     let json = index.schema().to_json(&doc);
-    let mut index_writer = index.writer(50_000_000).expect("writer");
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
-    index_writer.wait_merging_threads().expect("merge");
     write_source(url_hash, json);
 }
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
@@ -474,7 +440,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
                             }
                         };
                     } else {
-                        let mut short_body = body.clone();
+                        let mut short_body = body;
                         short_body.truncate(150);
                         doc.add_text(
                             index.schema().get_field("summary").expect("summary"),
@@ -592,7 +558,9 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
         println!("have {}", url);
     } else if source_exists(&url_hash) {
         println!("cached file {}", url);
-        update_cached(&url_hash, &index, meta);
+        let mut index_writer = index.writer(50_000_000).expect("writer");
+        update_cached(&url_hash, &index, meta, &mut index_writer);
+        index_writer.wait_merging_threads().expect("merge");
     } else {
         let parsed = reqwest::Url::parse(&url).expect("url pase");
 
@@ -615,20 +583,23 @@ pub fn write_source(url_hash: &str, json: String) {
     let source_path = index_path.join("source");
     let output = File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
     let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
-    writer.write_all(json.as_bytes());
+    writer
+        .write_all(json.as_bytes())
+        .expect("write source file");
     //output.write_all(json.as_bytes()).expect("write");
 }
 pub fn read_source(url_hash: &str) -> String {
     let system_path = ".private_search";
     let index_path = Path::new(system_path);
     let source_path = index_path.join("source");
-    let input = File::open(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
+    let input = File::open(source_path.join(format!("{}.jsonc", url_hash)))
+        .expect(&format!("read source {}", url_hash));
 
     let mut reader = brotli::Decompressor::new(
         input, 4096, // buffer size
     );
     let mut json = String::new();
-    reader.read_to_string(&mut json);
+    reader.read_to_string(&mut json).expect("read source file");
     json
 }
 
@@ -677,13 +648,15 @@ pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
 // move over to id hash
 pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAddress> {
     let searcher = searcher(&index);
+
+    let url_hash = md5_hash(url);
     let query_parser = QueryParser::for_index(
         &index,
-        vec![index.schema().get_field("url").expect("url field")],
+        vec![index.schema().get_field("id").expect("idfield")],
     );
 
     let query = query_parser
-        .parse_query(&format!("\"{}\"", url))
+        .parse_query(&format!("\"{}\"", url_hash))
         .expect("query parse for url match");
     let top_docs = searcher
         .search(&query, &TopDocs::with_limit(1))
@@ -695,4 +668,31 @@ pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAdd
         Some((_, doc_address)) => Some(*doc_address),
         _ => None,
     }
+}
+
+pub fn backfill_from_cached() {
+    let path_name = ".private_search/source".to_string();
+    let entries = glob(&format!("{}/*.jsonc", path_name)).expect("Failed to read glob pattern");
+    let mut counter = 0;
+
+    let index = search_index().unwrap();
+    let mut index_writer = index.writer(50_000_000).expect("writer");
+    for entry in entries {
+        if let Ok(file) = entry {
+            {
+                if counter % 10000 == 0 {
+                    println!("commited {}", counter);
+                    index_writer.commit().expect("commit");
+                }
+            }
+            let file_string = file.to_str().expect("file_path");
+            let url_hash = file_string.replace(".jsonc", "");
+            let url_hash = url_hash.split("/").last().unwrap();
+            let doc = update_document(&url_hash, &index, UrlMeta::default());
+            index_writer.add_document(doc);
+            counter = counter + 1;
+        }
+    }
+    index_writer.commit().expect("last commit");
+    index_writer.wait_merging_threads().expect("merge");
 }
