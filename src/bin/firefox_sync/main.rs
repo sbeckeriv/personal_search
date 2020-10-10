@@ -158,7 +158,8 @@ fn main() -> tantivy::Result<()> {
                                 .map(|num| Utc.timestamp(num / 1000000, 0)),
                             access_count: Some(place.visit_count),
                             pinned: None,
-                            keywords: None,
+                            tags_add: None,
+                            tags_remove: None,
                             hidden: None,
                         };
                         Some((place.url, meta, place.id, place.last_visit_date))

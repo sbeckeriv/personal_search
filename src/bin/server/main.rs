@@ -25,24 +25,6 @@ pub struct Opt {
     search_folder_path: Option<PathBuf>,
 }
 
-fn set_attribute(url: &str, field: String, value: i8) {
-    let mut meta = indexer::UrlMeta::default();
-    match field.as_str() {
-        "pinned" => {
-            meta.pinned = Some(value.into());
-        }
-        "hide" => {
-            meta.hidden = Some(value.into());
-        }
-        _ => {}
-    }
-
-    let index = indexer::search_index().expect("could not open search index");
-    let url_hash = indexer::md5_hash(url);
-
-    //indexer::update_cached(&url_hash, &index, meta);
-}
-
 #[derive(Serialize)]
 struct FacetCount {
     name: String,
@@ -100,6 +82,18 @@ fn doc_to_json(retrieved_doc: &tantivy::Document, schema: &tantivy::schema::Sche
             .push(f.value())
     }
 
+    let tags = retrieved_doc
+        .get_all(schema.get_field("tags").expect("tags"))
+        .iter()
+        .map(|s| {
+            if let tantivy::schema::Value::Facet(facet) = s {
+                facet.to_path_string()
+            } else {
+                "".to_string()
+            }
+        })
+        .collect::<Vec<_>>();
+
     SearchJson {
         id: m
             .get("id")
@@ -147,14 +141,7 @@ fn doc_to_json(retrieved_doc: &tantivy::Document, schema: &tantivy::schema::Sche
             })
             .unwrap_or_default(),
 
-        tags: m
-            .get("keywords")
-            .map(|t| {
-                t.iter()
-                    .map(|ff| ff.text().unwrap_or("").to_string())
-                    .collect()
-            })
-            .unwrap_or_default(),
+        tags: tags,
         bookmarked: m
             .get("bookmarked")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
@@ -228,6 +215,69 @@ async fn search_request(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AttributeArrayRequest {
+    url: String,
+    field: String,
+    value: String,
+    action: String,
+}
+async fn attribute_array_request(
+    web::Query(info): web::Query<AttributeArrayRequest>,
+) -> web::Json<Option<SearchJson>> {
+    let index = indexer::search_index().expect("could not open search index");
+    let mut index_writer = index.writer(50_000_000).expect("writer");
+    let searcher = indexer::searcher(&index);
+    dbg!(&info);
+    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
+        let id = indexer::md5_hash(&info.url);
+        let old_doc = tantivy::Term::from_field_text(
+            index.schema().get_field("id").expect("domain field"),
+            &id,
+        );
+        index_writer.delete_term(old_doc);
+    }
+
+    let mut meta = indexer::UrlMeta::default();
+    match info.action.as_str() {
+        "add" => {
+            let tag = info.value.trim().clone().to_string();
+            let tag = if tag.starts_with("/") {
+                tag
+            } else {
+                format!("/{}/{}", info.field, tag)
+            };
+
+            meta.tags_add = Some(vec![tag]);
+        }
+        "remove" => {
+            let tag = info.value.trim().clone().to_string();
+            let tag = if tag.starts_with("/") {
+                tag
+            } else {
+                format!("/{}/{}", info.field, tag)
+            };
+            meta.tags_remove = Some(vec![tag]);
+        }
+        _ => {}
+    }
+
+    let url_hash = indexer::md5_hash(&info.url);
+
+    indexer::update_cached(&url_hash, &index, meta, &mut index_writer);
+    index_writer.commit().expect("commit");
+    index_writer.wait_merging_threads().expect("merge");
+
+    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
+        let searcher = indexer::searcher(&index);
+        let schema = index.schema();
+        let retrieved_doc = searcher.doc(doc_address).expect("doc");
+        web::Json(Some(doc_to_json(&retrieved_doc, &schema)))
+    } else {
+        web::Json(None)
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AttributeRequest {
     url: String,
     field: String,
@@ -252,8 +302,6 @@ async fn attribute_request(
         //    index_writer.commit().expect("commit");
         //     index_writer.wait_merging_threads().expect("merge");
     }
-    // why not just pass info object
-    //set_attribute(&info.url, info.field, info.value);
 
     let mut meta = indexer::UrlMeta::default();
     match info.field.as_str() {
@@ -369,6 +417,10 @@ async fn main() -> std::io::Result<()> {
                 web::resource("/attributes")
                     .route(web::get().to(attribute_request))
                     .route(web::head().to(HttpResponse::MethodNotAllowed)),
+            )
+            .service(
+                //yes i know it should be a post i dont care
+                web::resource("/attributes_array").route(web::get().to(attribute_array_request)),
             )
             .service(
                 web::resource("/facets")

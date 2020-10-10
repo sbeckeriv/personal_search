@@ -137,6 +137,7 @@ impl Settings {
             "settings".to_string(),
         ));
     }
+
     fn chip_it(&self, chip: &str) -> Html {
         let domain = chip.clone();
         let domain = domain.to_string();
@@ -170,16 +171,15 @@ impl Settings {
               </div>
             </>}
         } else {
-            html! {<>
+            html! {
               <div class="row">
               { "The settings from the server have not loaded yet. If you changed the default port please manually restart the server and reload the page" }
               </div>
-            </>}
+            }
         }
     }
     fn settings_modal(&self) -> Html {
         html! {
-            <>
         <div id="setting_modal" class="modal">
           <div class="modal-content">
               <div class="row">
@@ -195,8 +195,7 @@ impl Settings {
               </div>
           </div>
         </div>
-        </>
-              }
+        }
     }
 }
 
@@ -277,7 +276,7 @@ struct SearchArray {
     results: Vec<SearchJson>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct SearchJson {
     id: String,
     title: String,
@@ -398,8 +397,28 @@ impl Component for SearchResults {
                             // remove dup
                             self.for_value(results);
                         }
-                        "set_pin" => {
+                        "set_attributes" => {
                             self.pin_task = None;
+
+                            let results = response.1.ok();
+                            ConsoleService::log(&format!("{:?}", results));
+                            let result: SearchJson =
+                                serde_json::from_value(results.unwrap()).unwrap();
+
+                            if let Some(mut search_array) = self.search_json.as_mut() {
+                                let updated = search_array
+                                    .results
+                                    .iter()
+                                    .map(|m| {
+                                        if m.id == result.id {
+                                            result.clone()
+                                        } else {
+                                            m.clone()
+                                        }
+                                    })
+                                    .collect::<Vec<SearchJson>>();
+                                search_array.results = updated;
+                            }
                         }
                         _ => {}
                     }
@@ -449,10 +468,10 @@ impl SearchResults {
         self.pin_task = Some(self.fetch_json(
             false,
             format!(
-                "http://localhost:{}/tag?url={}&field=tag&value={}",
+                "http://localhost:{}/attributes_array?url={}&field=tag&value={}&action=add",
                 self.port, urlencoded, urlencoded_tag
             ),
-            format!("set_tag"),
+            "set_attributes".to_string(),
         ));
     }
 
@@ -465,7 +484,7 @@ impl SearchResults {
                 "http://localhost:{}/attributes?url={}&field={}&value={}",
                 self.port, urlencoded, field, value
             ),
-            format!("set_{}", field),
+            "set_attributes".to_string(),
         ));
     }
     fn fetch_json(
@@ -496,16 +515,11 @@ impl SearchResults {
     }
 
     fn loading_html(&self) -> Html {
-        if false {
-            //self.fetching {
-            html! {
-              <div class="progress">
-                  <div class="indeterminate"></div>
-              </div>
-            }
-        } else {
-            html!()
-        }
+        if_html!(self.fetching =>
+        <div class="progress">
+            <div class="indeterminate"></div>
+        </div>
+        )
     }
 
     fn search_item_html(&self, obj: &SearchJson) -> Html {
@@ -537,7 +551,6 @@ impl SearchResults {
         html! {
             <>
                 <a class="dropdown-trigger secondary-content" href="#" data-target=format!("dropdown-{}",id)><i class="material-icons">{"arrow_drop_down"}</i> </a>
-
                 <ul id=format!("dropdown-{}",id) class="dropdown-content">
                     <li><a href="#!" onclick=self.link.callback(move |e| Msg::Hide(base_url.clone())) >{"hide url"}</a></li>
                     <li><a href="#!" onclick=self.link.callback(move |e| Msg::HideDomain(base2_url.clone())) >{"hide domain"}</a></li>
@@ -576,39 +589,21 @@ impl SearchResults {
     }
 
     fn bookmarked(&self, marked: &i64) -> Html {
-        if marked == &1 {
-            html! {
-            <a href="#!" class="secondary-content tooltipped search-bookmarked" data-position="bottom" data-tooltip="Bookmark">
-                <i class="material-icons">{"bookmark"}</i>
-            </a>
-            }
-        } else {
-            html! {
-                <a href="#!" class="secondary-content tooltipped search-bookmarked"  data-position="bottom" data-tooltip="Bookmark">
-                    <i class="material-icons">{"bookmark_border"}</i>
-                </a>
-            }
-        }
+        if_html!( marked == &1 =>
+         <a href="#!" class="secondary-content tooltipped search-bookmarked" data-position="bottom" data-tooltip="Bookmark">
+             <i class="material-icons">{"bookmark"}</i>
+         </a>
+        )
     }
 
     fn chip(&self, string: &str) -> Html {
         let string = string.trim();
-        let string = if string.starts_with('/') {
-            let mut chars = string.chars();
-            chars.next();
-            chars.as_str()
-        } else {
-            string
-        };
-        if string.is_empty() {
-            html!()
-        } else {
-            html! {
+        if_html!(
+            !string.is_empty() =>
                 <div class="chip">
                     {string}
                 </div>
-            }
-        }
+        )
     }
 
     fn search_results(&self) -> Html {
@@ -616,32 +611,21 @@ impl SearchResults {
             self.loading_html()
         } else if let Some(json) = &self.search_json {
             html! {
-                <>
-            <ul class="collection">
-                { json.results.iter().map(|i|{ self.search_item_html(&i) }).collect::<Html>() }
-            </ul>
+            <>
+                <ul class="collection">
+                    { json.results.iter().map(|i|{ self.search_item_html(&i) }).collect::<Html>() }
+                </ul>
 
                 <script>
-                {"
-                   var elems = document.querySelectorAll('.dropdown-trigger');
-                   var instances = M.Dropdown.init(elems, {closeOnClick: false, constrainWidth: false, container: document.querySelectorAll('.results')});
-                   "}
+                    {
+                        "var elems = document.querySelectorAll('.dropdown-trigger');
+                        var instances = M.Dropdown.init(elems, {closeOnClick: false, constrainWidth: false, container: document.querySelectorAll('.results')});"
+                    }
                 </script>
-                    </>
+            </>
             }
         } else {
             html!()
-        }
-    }
-
-    fn set_pin(&mut self, _url: &str, _pinned: i64) {
-        // find and set value.
-        if let Some(_json) = &mut self.search_json {
-            //for &mut result in json.results {
-            //   if result.url == url {
-            //      result.pinned = pinned;
-            //   }
-            // }
         }
     }
 }
@@ -701,59 +685,23 @@ impl FacetResults {
 }
 
 impl App {
-    fn init(&self) {
-        //load_terms()
-    }
-
-    fn fetch_json(
-        &mut self,
-        binary: bool,
-        url: String,
-        stored_data: String,
-    ) -> yew::services::fetch::FetchTask {
-        let callback = self
-            .link
-            .callback(move |response: Response<Json<Result<Value, Error>>>| {
-                let (meta, Json(data)) = response.into_parts();
-                if meta.status.is_success() {
-                    Msg::FetchReady((stored_data.clone(), data))
-                } else {
-                    Msg::Ignore // FIXME: Handle this error accordingly.
-                }
-            });
-        let request = Request::get(url)
-            .header("Accept", "application/json")
-            .body(Nothing)
-            .unwrap();
-        if binary {
-            FetchService::fetch_binary(request, callback).unwrap()
-        } else {
-            FetchService::fetch(request, callback).unwrap()
-        }
-    }
-
     fn setting_modal(&self) -> Html {
         html! {
-        <Settings/>
-          }
+            <Settings/>
+        }
     }
     fn content(&self) -> Html {
-        let _tags: Vec<&str> = vec![];
-
         html! {
-        <>
         <div class="row results">
             <div class="col s11">
                 <SearchResults search_input=self.search.clone()/>
             </div>
         </div>
-        </>
         }
     }
 
     fn header(&self) -> Html {
         html! {
-        <>
         <header>
         <nav class="top-nav">
                 <div class="nav-wrapper">
@@ -768,9 +716,7 @@ impl App {
                 </div>
         </nav>
         </header>
-
-        </>
-                    }
+        }
     }
 }
 
@@ -782,7 +728,6 @@ pub enum Msg {
     Pin(String),
     Unpin(String),
     UpdatePort(String),
-    SearchTerms(String),
     Hide(String),
     Tag((String, String)),
     Untag((String, String)),

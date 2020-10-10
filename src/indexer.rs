@@ -235,7 +235,8 @@ pub struct UrlMeta {
     pub title: Option<String>,
     pub bookmarked: Option<bool>,
     pub last_visit: Option<DateTime<Utc>>,
-    pub keywords: Option<Vec<String>>,
+    pub tags_add: Option<Vec<String>>,
+    pub tags_remove: Option<Vec<String>>,
     pub pinned: Option<i64>,
     pub access_count: Option<i64>,
     pub hidden: Option<i64>,
@@ -323,12 +324,26 @@ pub fn add_hash(domain: &str, hash: u64) {
 pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document {
     let json_string = read_source(url_hash);
     let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
-    for keyword in meta.keywords.unwrap_or_default() {
-        let words = json.get_mut("keywords").expect("keywords");
-        if let Some(array) = words.as_array_mut() {
-            let value = serde_json::Value::String(keyword.clone());
-            if !array.contains(&value) {
-                array.push(value);
+    for keyword in meta.tags_add.unwrap_or_default() {
+        let value = serde_json::Value::String(keyword.clone());
+        if let Some(words) = json.get_mut("tags") {
+            if let Some(array) = words.as_array_mut() {
+                if !array.contains(&value) {
+                    array.push(value);
+                }
+            }
+        } else {
+            json["tags"] = serde_json::Value::Array(vec![value]);
+        }
+    }
+
+    for keyword in meta.tags_remove.unwrap_or_default() {
+        if let Some(words) = json.get_mut("tags") {
+            if let Some(array) = words.as_array_mut() {
+                let value = serde_json::Value::String(keyword.clone());
+                if let Some(index) = array.iter().position(|i| i == &value) {
+                    array.remove(index); // remove the element at the position index (2)
+                }
             }
         }
     }
@@ -489,10 +504,10 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
                     Facet::from(&format!("/keywords/{}", keyword.trim())),
                 );
             }
-            for keyword in meta.keywords.unwrap_or_default() {
+            for keyword in meta.tags_add.unwrap_or_default() {
                 doc.add_facet(
                     index.schema().get_field("tags").expect("tags"),
-                    Facet::from(&format!("/keywords/{}", keyword)),
+                    Facet::from(&format!("{}", keyword)),
                 );
             }
 
