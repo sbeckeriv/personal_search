@@ -465,7 +465,12 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
                         };
                     } else {
                         let mut short_body = body;
-                        short_body.truncate(150);
+                        let mut new_len = 150;
+                        // prevent panics by finding a safe spot to slice
+                        while (!short_body.is_char_boundary(new_len)) {
+                            new_len += 1;
+                        }
+                        short_body.truncate(new_len);
                         doc.add_text(
                             index.schema().get_field("summary").expect("summary"),
                             &short_body,
