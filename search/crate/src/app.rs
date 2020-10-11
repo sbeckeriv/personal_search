@@ -357,12 +357,8 @@ impl Component for SearchResults {
             }
             Msg::Untag(change) => {
                 let (url, tag) = change;
-                if tag.ends_with(' ') {
-                    self.remote_set_tag(&url, &tag, "remove");
-                    self.new_tag = String::new();
-                } else {
-                    self.new_tag = tag;
-                }
+                self.remote_set_tag(&url, &tag, "remove");
+                self.new_tag = String::new();
             }
             Msg::Tag(change) => {
                 let (url, tag) = change;
