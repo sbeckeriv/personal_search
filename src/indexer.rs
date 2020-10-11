@@ -68,19 +68,22 @@ lazy_static::lazy_static! {
 
 pub fn write_settings(config: &SystemSettings) {
     let path_name = ".private_search/server_settings.toml".to_string();
-    let _s = String::new();
+    let system_path = ".private_search";
+    create_directory(&system_path);
     let file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .open(&path_name);
-    file.expect("setting filewrite")
+    file.expect("setting file write")
         .write_all(toml::to_string(&config).unwrap().as_bytes())
         .expect("file");
 }
 
 pub fn read_settings() -> SystemSettings {
     let path_name = ".private_search/server_settings.toml".to_string();
+    let system_path = ".private_search";
+    create_directory(&system_path);
     let mut s = String::new();
     let file = OpenOptions::new()
         .read(true)
@@ -109,11 +112,17 @@ pub fn read_settings() -> SystemSettings {
 
 fn create_directory(system_path: &str) {
     let index_path = Path::new(system_path);
-    if !index_path.is_dir() {
-        fs::create_dir(index_path).expect("could not make index dir");
-        fs::create_dir(index_path.join("source")).expect("could not make index dir");
-        fs::create_dir(index_path.join("index")).expect("could not make index dir");
-        fs::create_dir(index_path.join("hashes")).expect("could not make index dir");
+    let paths = vec![
+        index_path.join(""),
+        index_path.join("source"),
+        index_path.join("index"),
+        index_path.join("hashes"),
+    ];
+
+    for path in paths {
+        if !path.is_dir() {
+            fs::create_dir(path).expect("could not make index dir");
+        }
     }
 }
 

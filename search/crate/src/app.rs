@@ -355,11 +355,19 @@ impl Component for SearchResults {
             Msg::UpdatePort(string) => {
                 self.port = string;
             }
-
+            Msg::Untag(change) => {
+                let (url, tag) = change;
+                if tag.ends_with(' ') {
+                    self.remote_set_tag(&url, &tag, "remove");
+                    self.new_tag = String::new();
+                } else {
+                    self.new_tag = tag;
+                }
+            }
             Msg::Tag(change) => {
                 let (url, tag) = change;
                 if tag.ends_with(' ') {
-                    self.remote_set_tag(&url, &tag);
+                    self.remote_set_tag(&url, &tag, "add");
                     self.new_tag = String::new();
                 } else {
                     self.new_tag = tag;
@@ -461,15 +469,15 @@ impl SearchResults {
         ));
     }
 
-    fn remote_set_tag(&mut self, url: &str, tag: &str) {
+    fn remote_set_tag(&mut self, url: &str, tag: &str, action: &str) {
         let urlencoded: String = byte_serialize(url.as_bytes()).collect();
         let urlencoded_tag: String = byte_serialize(tag.as_bytes()).collect();
         // cause "debounce" the js kills the request the server still processes them
         self.pin_task = Some(self.fetch_json(
             false,
             format!(
-                "http://localhost:{}/attributes_array?url={}&field=tag&value={}&action=add",
-                self.port, urlencoded, urlencoded_tag
+                "http://localhost:{}/attributes_array?url={}&field=tag&value={}&action={}",
+                self.port, urlencoded, urlencoded_tag, action
             ),
             "set_attributes".to_string(),
         ));
@@ -529,7 +537,7 @@ impl SearchResults {
             <p> {&obj.description} <br/>
             {&obj.summary}
             <br/>
-            { obj.tags.iter().map(|keyword| self.chip(&keyword)).collect::<Vec<Html>>()}
+            { obj.tags.iter().map(|keyword| self.chip(&obj.url.clone(), &keyword)).collect::<Vec<Html>>()}
             </p>
 
             { self.pinned(&obj.pinned, obj.url.clone()) }
@@ -596,12 +604,14 @@ impl SearchResults {
         )
     }
 
-    fn chip(&self, string: &str) -> Html {
-        let string = string.trim();
+    fn chip(&self, url: &str, string: &str) -> Html {
+        let string = string.trim().to_string();
+        let domain = url.to_string().clone();
         if_html!(
             !string.is_empty() =>
                 <div class="chip">
-                    {string}
+                    {string.clone()}
+                    <i class="close material-icons" onclick=self.link.callback(move |e: MouseEvent| Msg::Untag((domain.clone(), string.clone())))>{"close"}</i>
                 </div>
         )
     }
