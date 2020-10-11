@@ -225,7 +225,7 @@ async fn attribute_array_request(
     web::Query(info): web::Query<AttributeArrayRequest>,
 ) -> web::Json<Option<SearchJson>> {
     let index = indexer::search_index().expect("could not open search index");
-    let searcher = indexer::searcher(&index);
+    let _searcher = indexer::searcher(&index);
 
     let mut meta = indexer::UrlMeta::default();
     match info.action.as_str() {
@@ -251,7 +251,7 @@ async fn attribute_array_request(
         _ => {}
     }
 
-    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
+    if let Some(_doc_address) = indexer::find_url(&info.url, &index) {
         let id = indexer::md5_hash(&info.url);
         let old_doc = tantivy::Term::from_field_text(
             index.schema().get_field("id").expect("domain field"),
@@ -291,7 +291,7 @@ async fn attribute_request(
 ) -> web::Json<Option<SearchJson>> {
     dbg!(request.headers());
     let index = indexer::search_index().expect("could not open search index");
-    let searcher = indexer::searcher(&index);
+    let _searcher = indexer::searcher(&index);
 
     let mut meta = indexer::UrlMeta::default();
     match info.field.as_str() {
@@ -304,7 +304,7 @@ async fn attribute_request(
         _ => {}
     }
     dbg!(&info);
-    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
+    if let Some(_doc_address) = indexer::find_url(&info.url, &index) {
         let id = indexer::md5_hash(&info.url);
         let old_doc = tantivy::Term::from_field_text(
             index.schema().get_field("id").expect("domain field"),

@@ -61,15 +61,24 @@ impl Default for SystemSettings {
         }
     }
 }
-
+use std::env;
 lazy_static::lazy_static! {
     pub static ref CACHEDCONFIG: SystemSettings = read_settings();
+    pub static ref BASE_INDEX_DIR: String = match env::var("PS_INDEX_DIRECTORY") {
+        Ok(val) => {
+            if val.ends_with("/"){
+                val.to_string()
+            }else{
+                format!("{}/",val)
+            }
+        },
+        Err(_) => ".private_search/".to_string()
+    };
 }
 
 pub fn write_settings(config: &SystemSettings) {
-    let path_name = ".private_search/server_settings.toml".to_string();
-    let system_path = ".private_search";
-    create_directory(&system_path);
+    let path_name = format!("{}server_settings.toml", BASE_INDEX_DIR.to_string());
+    create_directory(&BASE_INDEX_DIR);
     let file = OpenOptions::new()
         .read(true)
         .write(true)
@@ -81,9 +90,8 @@ pub fn write_settings(config: &SystemSettings) {
 }
 
 pub fn read_settings() -> SystemSettings {
-    let path_name = ".private_search/server_settings.toml".to_string();
-    let system_path = ".private_search";
-    create_directory(&system_path);
+    let path_name = format!("{}server_settings.toml", BASE_INDEX_DIR.to_string());
+    create_directory(&BASE_INDEX_DIR);
     let mut s = String::new();
     let file = OpenOptions::new()
         .read(true)
@@ -127,19 +135,17 @@ fn create_directory(system_path: &str) {
 }
 
 fn index_directory(
-    system_path: &str,
 ) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError> {
-    create_directory(system_path);
-    let index_path = Path::new(system_path);
+    create_directory(&BASE_INDEX_DIR);
+    let index_path = Path::new(BASE_INDEX_DIR.as_str());
 
     tantivy::directory::MmapDirectory::open(index_path.join("index"))
 }
 
 fn hash_directory(
-    system_path: &str,
 ) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError> {
-    create_directory(system_path);
-    let index_path = Path::new(system_path);
+    create_directory(&BASE_INDEX_DIR);
+    let index_path = Path::new(BASE_INDEX_DIR.as_str());
 
     tantivy::directory::MmapDirectory::open(index_path.join("hashes"))
 }
@@ -147,7 +153,7 @@ fn hash_directory(
 pub fn hash_index(system_path: &str) -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
     // dont keep its own index? we are writing the domain and duplicate urls to prevent them
     // from reloading. just use that?
-    let directory = hash_directory(&system_path);
+    let directory = hash_directory();
 
     let mut schema_builder = Schema::builder();
     schema_builder.add_text_field("domain", TEXT | STORED);
@@ -167,8 +173,7 @@ pub fn hash_index(system_path: &str) -> std::result::Result<tantivy::Index, tant
 }
 
 pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
-    let system_path = ".private_search";
-    let directory = index_directory(&system_path);
+    let directory = index_directory();
 
     let mut schema_builder = Schema::builder();
 
@@ -196,7 +201,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
             println!("dir not found");
             Err(tantivy::TantivyError::SystemError(format!(
                 "could not open index directory {}",
-                system_path
+                BASE_INDEX_DIR.as_str()
             )))
         }
     }
@@ -275,8 +280,7 @@ pub fn md5_hash(domain: &str) -> String {
 }
 
 pub fn add_hash(domain: &str, hash: u64) {
-    let system_path = ".private_search";
-    let index = hash_index(system_path).expect("hash index");
+    let index = hash_index(&BASE_INDEX_DIR).expect("hash index");
     let searcher = searcher(&index);
     let mut index_writer = index.writer(50_000_000).expect("writer");
     let query_parser = QueryParser::for_index(
@@ -467,7 +471,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
                         let mut short_body = body;
                         let mut new_len = 150;
                         // prevent panics by finding a safe spot to slice
-                        while (!short_body.is_char_boundary(new_len)) {
+                        while !short_body.is_char_boundary(new_len) {
                             new_len += 1;
                         }
                         short_body.truncate(new_len);
@@ -601,14 +605,12 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
     };
 }
 pub fn source_exists(filename: &str) -> bool {
-    let system_path = ".private_search";
-    let index_path = Path::new(system_path);
+    let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
     source_path.join(format!("{}.jsonc", filename)).exists()
 }
 pub fn write_source(url_hash: &str, json: String) {
-    let system_path = ".private_search";
-    let index_path = Path::new(system_path);
+    let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
     let output = File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
     let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
@@ -618,8 +620,7 @@ pub fn write_source(url_hash: &str, json: String) {
     //output.write_all(json.as_bytes()).expect("write");
 }
 pub fn read_source(url_hash: &str) -> String {
-    let system_path = ".private_search";
-    let index_path = Path::new(system_path);
+    let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
     let input = File::open(source_path.join(format!("{}.jsonc", url_hash)))
         .expect(&format!("read source {}", url_hash));
@@ -633,8 +634,7 @@ pub fn read_source(url_hash: &str) -> String {
 }
 
 pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
-    let system_path = ".private_search";
-    let index = hash_index(system_path).expect("hash index");
+    let index = hash_index(BASE_INDEX_DIR.as_str()).expect("hash index");
     let searcher = searcher(&index);
     let query_parser = QueryParser::for_index(
         &index,
