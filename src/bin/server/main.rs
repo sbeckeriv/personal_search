@@ -225,17 +225,7 @@ async fn attribute_array_request(
     web::Query(info): web::Query<AttributeArrayRequest>,
 ) -> web::Json<Option<SearchJson>> {
     let index = indexer::search_index().expect("could not open search index");
-    let mut index_writer = index.writer(50_000_000).expect("writer");
     let searcher = indexer::searcher(&index);
-    dbg!(&info);
-    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
-        let id = indexer::md5_hash(&info.url);
-        let old_doc = tantivy::Term::from_field_text(
-            index.schema().get_field("id").expect("domain field"),
-            &id,
-        );
-        index_writer.delete_term(old_doc);
-    }
 
     let mut meta = indexer::UrlMeta::default();
     match info.action.as_str() {
@@ -261,12 +251,24 @@ async fn attribute_array_request(
         _ => {}
     }
 
-    let url_hash = indexer::md5_hash(&info.url);
+    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
+        let id = indexer::md5_hash(&info.url);
+        let old_doc = tantivy::Term::from_field_text(
+            index.schema().get_field("id").expect("domain field"),
+            &id,
+        );
 
-    indexer::update_cached(&url_hash, &index, meta, &mut index_writer);
-    index_writer.commit().expect("commit");
-    index_writer.wait_merging_threads().expect("merge");
+        let mut index_writer = index.writer(50_000_000).expect("writer");
+        index_writer.delete_term(old_doc);
 
+        let url_hash = indexer::md5_hash(&info.url);
+
+        indexer::update_cached(&url_hash, &index, meta, &mut index_writer);
+        index_writer.commit().expect("commit");
+        index_writer.wait_merging_threads().expect("merge");
+    } else {
+        indexer::index_url(info.url.clone(), meta, Some(&index));
+    }
     if let Some(doc_address) = indexer::find_url(&info.url, &index) {
         let searcher = indexer::searcher(&index);
         let schema = index.schema();
@@ -284,24 +286,12 @@ pub struct AttributeRequest {
     value: i8,
 }
 async fn attribute_request(
+    request: HttpRequest,
     web::Query(info): web::Query<AttributeRequest>,
 ) -> web::Json<Option<SearchJson>> {
+    dbg!(request.headers());
     let index = indexer::search_index().expect("could not open search index");
-    let mut index_writer = index.writer(50_000_000).expect("writer");
     let searcher = indexer::searcher(&index);
-    dbg!(&info);
-    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
-        let id = indexer::md5_hash(&info.url);
-        dbg!(&id);
-        dbg!(&doc_address);
-        let old_doc = tantivy::Term::from_field_text(
-            index.schema().get_field("id").expect("domain field"),
-            &id,
-        );
-        index_writer.delete_term(old_doc);
-        //    index_writer.commit().expect("commit");
-        //     index_writer.wait_merging_threads().expect("merge");
-    }
 
     let mut meta = indexer::UrlMeta::default();
     match info.field.as_str() {
@@ -313,12 +303,28 @@ async fn attribute_request(
         }
         _ => {}
     }
+    dbg!(&info);
+    if let Some(doc_address) = indexer::find_url(&info.url, &index) {
+        let id = indexer::md5_hash(&info.url);
+        let old_doc = tantivy::Term::from_field_text(
+            index.schema().get_field("id").expect("domain field"),
+            &id,
+        );
 
-    let url_hash = indexer::md5_hash(&info.url);
+        let mut index_writer = index.writer(50_000_000).expect("writer");
+        index_writer.delete_term(old_doc);
+        //    index_writer.commit().expect("commit");
+        //     index_writer.wait_merging_threads().expect("merge");
 
-    indexer::update_cached(&url_hash, &index, meta, &mut index_writer);
-    index_writer.commit().expect("commit");
-    index_writer.wait_merging_threads().expect("merge");
+        let url_hash = indexer::md5_hash(&info.url);
+
+        indexer::update_cached(&url_hash, &index, meta, &mut index_writer);
+        index_writer.commit().expect("commit");
+        index_writer.wait_merging_threads().expect("merge");
+    } else {
+        println!("new");
+        indexer::index_url(info.url.clone(), meta, Some(&index));
+    }
 
     if let Some(doc_address) = indexer::find_url(&info.url, &index) {
         let searcher = indexer::searcher(&index);
@@ -392,8 +398,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(
                 // not sure i need this if severing from here
                 Cors::new()
-                    .allowed_origin("http://localhost")
-                    .allowed_origin(&format!("http://localhost:{}", &port.clone()))
+                    //.allowed_origin("http://localhost")
+                    //.allowed_origin(&format!("http://localhost:{}", &port.clone()))
                     .max_age(3600)
                     .allowed_methods(vec!["GET", "POST", "PUT"])
                     .finish(),

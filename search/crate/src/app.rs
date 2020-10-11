@@ -159,14 +159,8 @@ impl Settings {
                     { settings.ignore_domains.iter().map(|d| self.chip_it(d)).collect::<Html>() }
                   </div>
                 <div class="input-field col s12">
+                  { "The url will not be indexed if it matches any of this list. Only html content types are indexed. Space adds the value to the list." }
                   <input id="ignore_domains" type="text" value=self.new_ignore_domains.clone() oninput=self.link.callback(|e: InputData| Msg::UpdateIgnoreDomains(e.value))/>
-                  <label class="active" for="ignore_domains">{ "Ignore domains (space adds it to the list)" }</label>
-                </div>
-              </div>
-              <div class="row">
-                <div class="input-field col s12">
-                  <input id="ignore_strings" type="text" value={settings.ignore_strings.join(", ")} oninput=self.link.callback(|e: InputData| Msg::IgnoreStrings(e.value))/>
-                  <label class="active" for="ignore_strings">{ "Ignore strings (csv list)" }</label>
                 </div>
               </div>
             </>}
