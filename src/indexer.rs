@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use dirs;
 use glob::glob;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
@@ -72,7 +73,15 @@ lazy_static::lazy_static! {
                 format!("{}/",val)
             }
         },
-        Err(_) => ".private_search/".to_string()
+        Err(_) => {
+            let home = dirs::home_dir().unwrap();
+            let home = home.join(".config");
+
+            if !home.is_dir() {
+               fs::create_dir(&home).expect("could not make index dir");
+            }
+            home.join("private_search").to_str().unwrap().to_string()
+        }
     };
 }
 

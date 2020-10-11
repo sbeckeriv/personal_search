@@ -5,7 +5,7 @@ authors = ["becker <github@deathbyescalator.com>"]
 edition = "2018"
 
 [features]
-firefox_sync = [ "rusqlite", "dirs" ]
+firefox_sync = [ "rusqlite" ]
 server = [ "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 
 [dependencies]
@@ -21,13 +21,13 @@ brotli = "*"
 serde = { version = "1", features = ["derive"]}
 serde_json =  { version = "1" }
 glob = "*"
+dirs = "*"
 
 probabilistic-collections = { version = "*", features = ["serde"] }
 triple_accel =  { version = "*" }
 md5 =  { version = "*"}
 rust-bert ={ version = "*" }
 
-dirs = { version = "*", optional = true }
 rusqlite = { version = "*", optional = true }
 
 
