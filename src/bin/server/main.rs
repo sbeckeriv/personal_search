@@ -180,8 +180,10 @@ fn search(query: String, limit: usize) -> Vec<SearchJson> {
     let query = if query.contains("hidden:") {
         query
     } else {
-        format!("({} AND {})", query, "hidden:0")
+        query
+        //format!("({} AND {})", query, "hidden:0")
     };
+    dbg!(&query);
 
     if let Ok(query) = query_parser.parse_query(&query) {
         let top_docs = searcher
