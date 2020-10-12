@@ -35,6 +35,10 @@ Add a bookmarklet to pin the current page you are looking at. If the url has not
 javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&value=1&url="+document.location).then(data=> data.json()).then(result=> alert("pinned: "+document.location));}());
 ```
 
+# Open search
+
+Open search is supported. In firefox I added it as a search engine with a keyword. I can type "ps postgres" and it will go to http://localhost:7172/index.html?q=postgres
+
 Development:
 use `PS_INDEX_DIRECTORY=test/private_search` to test
 
