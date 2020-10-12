@@ -1,4 +1,4 @@
-#Personal History Search
+# Personal History Search
 
 A search over your browser history.
 
@@ -39,7 +39,7 @@ javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&v
 
 Open search is supported. In firefox I added it as a search engine with a keyword. I can type "ps postgres" and it will go to http://localhost:7172/index.html?q=postgres
 
-Development:
+# Development
 use `PS_INDEX_DIRECTORY=test/private_search` to test
 
 places.sqlite is a 30 url file to test different states.
@@ -54,12 +54,8 @@ query test
 more options under help
 `cargo run --bin personal_search -- --help`
 
-Using:
+# Using
 tantivy for search
 Yew for the front end
 Actix for the server
-tantivy for search
-Yew for the front end
-Actix for the server
-Actix for the server
-Actix for the server
+
