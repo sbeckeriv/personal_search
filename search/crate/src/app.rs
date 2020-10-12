@@ -643,7 +643,24 @@ impl SearchResults {
             </>
             }
         } else {
-            html!()
+            html! {
+             <ul class="collection">
+               <li class="collection-item avatar">
+                 <p> { "Search hints:"} <br/>
+                 { " music AND (\"wu tang\" OR McConaughey) AND -support - boolean search. quote strings and use parentheses. * wild card, + required, - exclude, ? should" }
+                 <br/>
+
+                 { " content:turtle AND url:*wiki* - searchable text fields: content, url, and domain. " }
+                 <br/>
+                 { " pinned:1 - attributes that are number include hidden, pinned, bookmarked and duplicate. 1 for true and 0 for false. if not used hidden:0 is added to all queries." }
+                 <br/>
+
+                 { " tags:/tags/code - tags are hierarchical. the example search will return results for /tags/code/rust. /tags/ are user tags. /keywords/ are the html keywords." }
+                 <br/>
+                 </p>
+               </li>
+             </ul>
+            }
         }
     }
 }

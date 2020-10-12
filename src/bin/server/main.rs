@@ -177,6 +177,11 @@ fn search(query: String, limit: usize) -> Vec<SearchJson> {
         .collect();
 
     let query_parser = QueryParser::new(index.schema(), default_fields, index.tokenizers().clone());
+    let query = if query.contains("hidden:") {
+        query
+    } else {
+        format!("({} AND {})", query, "hidden:0")
+    };
 
     if let Ok(query) = query_parser.parse_query(&query) {
         let top_docs = searcher
