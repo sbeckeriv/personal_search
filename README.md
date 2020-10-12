@@ -15,6 +15,18 @@ Provide search bar widget
 
 Alpha level. You need to install start jobs and cron jobs manually. You might need to run some commands to clean things up. The UI works but it is rough.
 
+`cargo run --release --bin server --features server`
+
+open http://localhost:7172/index.html and configure domains to ignore and then turn on the indexer.
+
+manually run the indexer - firefox
+
+`cargo run --bin firefox_sync --features="firefox_sync" --release`
+
+the first run should index your last 1000 history if you turned on the index in the site config.
+
+cron the indexer..
+
 # Pin current page
 
 Add a bookmarklet to pin the current page you are looking at. If the url has not been index yet it will import it and pin it.
@@ -24,6 +36,9 @@ javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&v
 ```
 
 Using:
+tantivy for search
+Yew for the front end
+Actix for the server
 tantivy for search
 Yew for the front end
 Actix for the server
