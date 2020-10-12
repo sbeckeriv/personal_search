@@ -352,6 +352,7 @@ pub struct UpdateSystemSettings {
     port: Option<String>,
     ignore_domains: Option<Vec<String>>,
     ignore_strings: Option<Vec<String>>,
+    indexer_enabled: Option<bool>,
 }
 async fn update_settings(
     info: web::Json<UpdateSystemSettings>,
@@ -359,6 +360,10 @@ async fn update_settings(
     let mut settings = indexer::read_settings();
     if let Some(port) = &info.port {
         settings.port = port.clone();
+    }
+
+    if let Some(enabled) = &info.indexer_enabled {
+        settings.indexer_enabled = enabled.clone();
     }
     if let Some(ignore_domains) = &info.ignore_domains {
         settings.ignore_domains = ignore_domains.clone();

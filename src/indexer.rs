@@ -27,6 +27,7 @@ use triple_accel::hamming;
 pub struct SystemSettings {
     pub port: String,
     pub ignore_domains: Vec<String>,
+    pub indexer_enabled: bool,
     pub ignore_strings: Vec<String>,
 }
 
@@ -35,6 +36,7 @@ impl Default for SystemSettings {
         SystemSettings {
             port: "7172".to_string(),
             ignore_strings: vec![],
+            indexer_enabled: false,
             ignore_domains: vec![
                 "//127.0.0.1".to_string(),
                 "//192.168.".to_string(),
@@ -53,11 +55,6 @@ impl Default for SystemSettings {
                 "woot.com/".to_string(),
                 "imgur.com".to_string(),
                 "gstatic.com/".to_string(),
-                ".pdf$".to_string(),
-                ".png$".to_string(),
-                ".jpg$".to_string(),
-                ".js$".to_string(),
-                ".css$".to_string(),
             ],
         }
     }
@@ -86,7 +83,7 @@ lazy_static::lazy_static! {
 }
 
 pub fn write_settings(config: &SystemSettings) {
-    let path_name = format!("{}server_settings.toml", BASE_INDEX_DIR.to_string());
+    let path_name = format!("{}/server_settings.toml", BASE_INDEX_DIR.to_string());
     create_directory(&BASE_INDEX_DIR);
     let file = OpenOptions::new()
         .read(true)
@@ -99,7 +96,8 @@ pub fn write_settings(config: &SystemSettings) {
 }
 
 pub fn read_settings() -> SystemSettings {
-    let path_name = format!("{}server_settings.toml", BASE_INDEX_DIR.to_string());
+    let path_name = format!("{}/server_settings.toml", BASE_INDEX_DIR.to_string());
+    dbg!(&path_name);
     create_directory(&BASE_INDEX_DIR);
     let mut s = String::new();
     let file = OpenOptions::new()
@@ -118,7 +116,7 @@ pub fn read_settings() -> SystemSettings {
             };
         }
     };
-
+    dbg!(&s);
     if !s.is_empty() {
         let config: SystemSettings = toml::from_str(&s).expect("bad config parse");
         config
@@ -583,35 +581,37 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
     }
 }
 pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
-    let i;
-    let index = match index {
-        Some(index) => index,
-        None => {
-            i = search_index().unwrap();
-            &i
-        }
-    };
+    if CACHEDCONFIG.indexer_enabled {
+        let i;
+        let index = match index {
+            Some(index) => index,
+            None => {
+                i = search_index().unwrap();
+                &i
+            }
+        };
 
-    let url_hash = md5_hash(&url);
-    println!("indexing {} {}", &url_hash, &url);
-    if url_skip(&url) {
-        println!("skip {}", url);
-    } else if let Some(_doc_address) = find_url(&url, &index) {
-        println!("have {}", url);
-    } else if source_exists(&url_hash) {
-        println!("cached file {}", url);
-        let mut index_writer = index.writer(50_000_000).expect("writer");
-        update_cached(&url_hash, &index, meta, &mut index_writer);
-        index_writer.wait_merging_threads().expect("merge");
-    } else {
-        let parsed = reqwest::Url::parse(&url).expect("url pase");
+        let url_hash = md5_hash(&url);
+        println!("indexing {} {}", &url_hash, &url);
+        if url_skip(&url) {
+            println!("skip {}", url);
+        } else if let Some(_doc_address) = find_url(&url, &index) {
+            println!("have {}", url);
+        } else if source_exists(&url_hash) {
+            println!("cached file {}", url);
+            let mut index_writer = index.writer(50_000_000).expect("writer");
+            update_cached(&url_hash, &index, meta, &mut index_writer);
+            index_writer.wait_merging_threads().expect("merge");
+        } else {
+            let parsed = reqwest::Url::parse(&url).expect("url pase");
 
-        // covers ip only domains
-        if parsed.domain().is_none() {
-            return;
-        }
-        remote_index(&url, &index, meta)
-    };
+            // covers ip only domains
+            if parsed.domain().is_none() {
+                return;
+            }
+            remote_index(&url, &index, meta)
+        };
+    }
 }
 pub fn source_exists(filename: &str) -> bool {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());

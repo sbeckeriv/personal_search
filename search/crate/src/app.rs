@@ -43,6 +43,7 @@ pub struct SystemSettings {
     pub port: String,
     pub ignore_domains: Vec<String>,
     pub ignore_strings: Vec<String>,
+    pub indexer_enabled: bool,
 }
 
 pub struct Settings {
@@ -155,12 +156,21 @@ impl Settings {
             ConsoleService::log(&format!("{:?}", settings));
             html! {<>
               <div class="row">
-                  <div class="cliplist">
-                    { settings.ignore_domains.iter().map(|d| self.chip_it(d)).collect::<Html>() }
-                  </div>
+                <div class="cliplist">
+                { settings.ignore_domains.iter().map(|d| self.chip_it(d)).collect::<Html>() }
+                </div>
                 <div class="input-field col s12">
                   { "The url will not be indexed if it matches any of this list. Only html content types are indexed. Space adds the value to the list." }
                   <input id="ignore_domains" type="text" value=self.new_ignore_domains.clone() oninput=self.link.callback(|e: InputData| Msg::UpdateIgnoreDomains(e.value))/>
+                </div>
+                <div class="switch">
+                    { "Indexer: " }
+                    <label>
+                      { "Off" }
+                      <input type="checkbox" checked=settings.indexer_enabled, onclick=self.link.callback(|_| Msg::ToggleIndexer ) />
+                      <span class="lever"></span>
+                      { "On" }
+                    </label>
                 </div>
               </div>
             </>}
@@ -235,7 +245,15 @@ impl Component for Settings {
                 }
             }
 
+            Msg::ToggleIndexer => {
+                if let Some(settings) = self.settings.as_mut() {
+                    settings.indexer_enabled = !settings.indexer_enabled;
+                    self.update_settings(None);
+                }
+            }
+
             Msg::UpdatePort(string) => {
+                // server needs to be pre configured
                 self.port = string;
                 self.fetch_settings(Some(self.port.clone()));
             }
@@ -722,16 +740,20 @@ impl App {
 
 pub enum Msg {
     Search(String),
-    RemoveIgnoreDomains(String),
-    UpdateIgnoreDomains(String),
-    IgnoreStrings(String),
     Pin(String),
     Unpin(String),
-    UpdatePort(String),
     Hide(String),
     Tag((String, String)),
     Untag((String, String)),
     HideDomain(String),
+
+    //settings
+    RemoveIgnoreDomains(String),
+    UpdateIgnoreDomains(String),
+    IgnoreStrings(String),
+    UpdatePort(String),
+    ToggleIndexer,
+
     FetchReady((String, Result<Value, Error>)),
     Ignore,
 }
