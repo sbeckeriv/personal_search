@@ -35,10 +35,27 @@ Add a bookmarklet to pin the current page you are looking at. If the url has not
 javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&value=1&url="+document.location).then(data=> data.json()).then(result=> alert("pinned: "+document.location));}());
 ```
 
+Development:
+use `PS_INDEX_DIRECTORY=test/private_search` to test
+
+places.sqlite is a 30 url file to test different states.
+`cargo run --bin firefox_sync --features="firefox_sync" -- --db test/places.sqlite --backfill`
+
+index a single url
+`cargo run --bin personal_search -- --import_url https://docs.rs/tantivy/0.13.1/tantivy/schema/struct.FieldValue.html`
+
+query test
+`cargo run --bin personal_search -- --query music`
+
+more options under help
+`cargo run --bin personal_search -- --help`
+
 Using:
 tantivy for search
 Yew for the front end
 Actix for the server
 tantivy for search
 Yew for the front end
+Actix for the server
+Actix for the server
 Actix for the server
