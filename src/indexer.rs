@@ -22,6 +22,37 @@ use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
+use ureq;
+use url;
+
+pub enum GetterResults {
+    Html(String),
+    Text(String),
+    Nothing,
+}
+pub trait IndexGetter {
+    fn get_url(&self, url: &str) -> GetterResults {
+        let agent = ureq::Agent::default().build();
+        let res = agent.get(url).timeout(Duration::new(10, 0)).call();
+
+        if let Some(lower) = res.header("Content-Type") {
+            dbg!(&lower);
+            let lower = lower.to_lowercase();
+            if lower == ""
+                || lower.contains("html")
+                || (lower.contains("text") && !lower.contains("javascript"))
+            {
+                GetterResults::Html(res.into_string().unwrap_or("".to_string()))
+            } else {
+                GetterResults::Nothing
+            }
+        } else {
+            GetterResults::Nothing
+        }
+    }
+}
+pub struct NoAuthBlockingGetter {}
+impl IndexGetter for NoAuthBlockingGetter {}
 
 #[derive(Serialize, Debug, Deserialize)]
 pub struct SystemSettings {
@@ -214,22 +245,18 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
     }
 }
 
-pub fn get_url(url: &str) -> Result<String, reqwest::Error> {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()?;
-    let res = client.get(url).send()?;
-    let headers = res.headers();
+pub fn get_url(url: &str) -> Result<String, ureq::Error> {
+    let agent = ureq::Agent::default().build();
+    let res = agent.get(url).timeout(Duration::new(10, 0)).call();
 
-    let body = if let Some(content_type) = headers.get("Content-Type") {
-        let lower = content_type.to_str().unwrap_or("");
+    let body = if let Some(lower) = res.header("Content-Type") {
         dbg!(&lower);
         let lower = lower.to_lowercase();
         if lower == ""
             || lower.contains("html")
             || (lower.contains("text") && !lower.contains("javascript"))
         {
-            res.text()?
+            res.into_string().unwrap_or("".to_string())
         } else {
             "".to_string()
         }
@@ -265,7 +292,7 @@ pub struct UrlMeta {
 
 pub fn url_skip(url: &str) -> bool {
     // lazy static this
-    let parsed = reqwest::Url::parse(&url).expect("url pase");
+    let parsed = url::Url::parse(&url).expect("url pase");
     if !parsed.scheme().starts_with("http") {
         true
     } else {
@@ -405,14 +432,15 @@ pub fn update_cached(
     index_writer.commit().expect("commit");
     write_source(url_hash, json);
 }
-pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
+pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
     let url_hash = md5_hash(&url);
-    let parsed = reqwest::Url::parse(&url).expect("url pase");
-    match get_url(&url) {
-        Ok(body) => {
+    let parsed = url::Url::parse(&url).expect("url pase");
+
+    let mut doc = tantivy::Document::default();
+    match getter.get_url(&url) {
+        GetterResults::Html(body) => {
             println!("processing {}", &url);
             let document = document::Document::from(body.as_str());
-            let mut doc = tantivy::Document::default();
             let title = match document.find(select::predicate::Name("title")).next() {
                 Some(node) => node.text(),
                 _ => meta.title.unwrap_or_else(|| "".to_string()),
@@ -535,52 +563,54 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta) {
                     Facet::from(&format!("{}", keyword)),
                 );
             }
-
-            doc.add_date(
-                index.schema().get_field("added_at").expect("added_at"),
-                &Utc::now(),
-            );
-
-            let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or_else(Utc::now);
-            doc.add_date(
-                index
-                    .schema()
-                    .get_field("last_accessed_at")
-                    .expect("added_at"),
-                &last_visit,
-            );
-            doc.add_i64(
-                index.schema().get_field("pinned").expect("pinned"),
-                meta.pinned.unwrap_or(0),
-            );
-            doc.add_i64(
-                index
-                    .schema()
-                    .get_field("accessed_count")
-                    .expect("accessed_count"),
-                meta.access_count.unwrap_or(1),
-            );
-            doc.add_i64(
-                index.schema().get_field("bookmarked").expect("bookmarked"),
-                0,
-            );
-            doc.add_text(index.schema().get_field("id").expect("id"), &url_hash);
-            let json = index.schema().to_json(&doc);
-
-            let mut index_writer = index.writer(50_000_000).expect("writer");
-            index_writer.add_document(doc);
-            index_writer.commit().expect("commit");
-            index_writer.wait_merging_threads().expect("merge");
-
-            write_source(&url_hash, json);
         }
-
-        Err(e) => {
-            dbg!(e);
-        }
+        _ => {}
     }
+    doc.add_text(index.schema().get_field("url").expect("url"), &url);
+
+    doc.add_text(
+        index.schema().get_field("domain").expect("domain"),
+        parsed.domain().unwrap_or(""),
+    );
+    doc.add_date(
+        index.schema().get_field("added_at").expect("added_at"),
+        &Utc::now(),
+    );
+
+    let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or_else(Utc::now);
+    doc.add_date(
+        index
+            .schema()
+            .get_field("last_accessed_at")
+            .expect("added_at"),
+        &last_visit,
+    );
+    doc.add_i64(
+        index.schema().get_field("pinned").expect("pinned"),
+        meta.pinned.unwrap_or(0),
+    );
+    doc.add_i64(
+        index
+            .schema()
+            .get_field("accessed_count")
+            .expect("accessed_count"),
+        meta.access_count.unwrap_or(1),
+    );
+    doc.add_i64(
+        index.schema().get_field("bookmarked").expect("bookmarked"),
+        0,
+    );
+    doc.add_text(index.schema().get_field("id").expect("id"), &url_hash);
+    let json = index.schema().to_json(&doc);
+
+    let mut index_writer = index.writer(50_000_000).expect("writer");
+    index_writer.add_document(doc);
+    index_writer.commit().expect("commit");
+    index_writer.wait_merging_threads().expect("merge");
+
+    write_source(&url_hash, json);
 }
-pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
+pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl IndexGetter) {
     if CACHEDCONFIG.indexer_enabled {
         let i;
         let index = match index {
@@ -603,13 +633,13 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>) {
             update_cached(&url_hash, &index, meta, &mut index_writer);
             index_writer.wait_merging_threads().expect("merge");
         } else {
-            let parsed = reqwest::Url::parse(&url).expect("url pase");
+            let parsed = url::Url::parse(&url).expect("url pase");
 
             // covers ip only domains
             if parsed.domain().is_none() {
                 return;
             }
-            remote_index(&url, &index, meta)
+            remote_index(&url, &index, meta, getter)
         };
     }
 }

@@ -1,6 +1,7 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
 use actix_web::{middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result};
+use futures::future::{lazy, Future};
 use personal_search::indexer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -11,6 +12,7 @@ use tantivy::collector::TopDocs;
 use tantivy::doc;
 use tantivy::query::AllQuery;
 use tantivy::query::QueryParser;
+use tokio::spawn;
 
 #[derive(StructOpt, Debug)]
 pub struct Opt {
@@ -274,8 +276,13 @@ async fn attribute_array_request(
         index_writer.commit().expect("commit");
         index_writer.wait_merging_threads().expect("merge");
     } else {
-        indexer::index_url(info.url.clone(), meta, Some(&index));
+        let url = info.url.clone();
+        spawn(lazy(move |_| {
+            indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
+        }));
     }
+
+    let index = indexer::search_index().expect("could not open search index");
     if let Some(doc_address) = indexer::find_url(&info.url, &index) {
         let searcher = indexer::searcher(&index);
         let schema = index.schema();
@@ -329,10 +336,14 @@ async fn attribute_request(
         index_writer.commit().expect("commit");
         index_writer.wait_merging_threads().expect("merge");
     } else {
-        println!("new");
-        indexer::index_url(info.url.clone(), meta, Some(&index));
+        let url = info.url.clone();
+        spawn(lazy(move |_| {
+            println!("new");
+            indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
+        }));
     }
 
+    let index = indexer::search_index().expect("could not open search index");
     if let Some(doc_address) = indexer::find_url(&info.url, &index) {
         let searcher = indexer::searcher(&index);
         let schema = index.schema();

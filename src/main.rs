@@ -121,7 +121,12 @@ fn main() -> tantivy::Result<()> {
             } else if let Some(query) = opt.query {
                 search(query, index);
             } else if let Some(url) = opt.import_url {
-                indexer::index_url(url, indexer::UrlMeta::default(), Some(&index));
+                indexer::index_url(
+                    url,
+                    indexer::UrlMeta::default(),
+                    Some(&index),
+                    indexer::NoAuthBlockingGetter {},
+                );
             } else if let Some(facet) = opt.facet {
                 let field = opt.facet_field.unwrap_or_else(|| "tags".to_string());
                 facets(index, &field, &facet);

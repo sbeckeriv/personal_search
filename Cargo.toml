@@ -6,11 +6,11 @@ edition = "2018"
 
 [features]
 firefox_sync = [ "rusqlite" ]
-server = [ "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
+server = ["tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 
 [dependencies]
 tantivy = "0.13.2"
-reqwest = { version = "*", features = ["blocking"] }
+ureq = "*"
 select = "*"
 tempfile = "*"
 chrono = "*"
@@ -21,6 +21,7 @@ brotli = "*"
 serde = { version = "1", features = ["derive"]}
 serde_json =  { version = "1" }
 glob = "*"
+url = "*"
 dirs = "*"
 
 probabilistic-collections = { version = "*", features = ["serde"] }
@@ -28,9 +29,11 @@ triple_accel =  { version = "*" }
 md5 =  { version = "*"}
 rust-bert ={ version = "*" }
 
-rusqlite = { version = "*", optional = true }
+
+rusqlite = { version = "*", optional = true, features= ["bundled","chrono","unlock_notify"] }
 
 
+tokio = { version="*", optional = true}
 actix-web =  { version = "3", optional = true }
 actix-files =  { version = "*", optional = true }
 actix-cors =  { version = "*", optional = true }

@@ -190,7 +190,12 @@ fn main() -> tantivy::Result<()> {
                             .expect("ff cache");
                     }
 
-                    indexer::index_url(url.to_string(), meta.clone(), None);
+                    indexer::index_url(
+                        url.to_string(),
+                        meta.clone(),
+                        None,
+                        indexer::NoAuthBlockingGetter {},
+                    );
                 }
             }
         }
