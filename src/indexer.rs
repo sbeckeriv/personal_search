@@ -36,7 +36,7 @@ pub trait IndexGetter {
             let lower = lower.to_lowercase();
             if lower == "" || lower.contains("html") {
                 GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
-            } else if (lower.contains("text") && !lower.contains("javascript")) {
+            } else if lower.contains("text") && !lower.contains("javascript") {
                 GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
             } else if lower.contains("pdf") {
                 //GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))

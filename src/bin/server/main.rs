@@ -1,7 +1,7 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
 use actix_web::{middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result};
-use futures::future::{lazy};
+use futures::future::lazy;
 use personal_search::indexer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -239,7 +239,7 @@ async fn attribute_array_request(
     let mut meta = indexer::UrlMeta::default();
     match info.action.as_str() {
         "add" => {
-            let tag = info.value.trim().clone().to_string();
+            let tag = info.value.trim().to_string();
             let tag = if tag.starts_with('/') {
                 tag
             } else {
@@ -249,7 +249,7 @@ async fn attribute_array_request(
             meta.tags_add = Some(vec![tag]);
         }
         "remove" => {
-            let tag = info.value.trim().clone().to_string();
+            let tag = info.value.trim().to_string();
             let tag = if tag.starts_with('/') {
                 tag
             } else {
