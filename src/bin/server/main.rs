@@ -1,7 +1,7 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
 use actix_web::{middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result};
-use futures::future::{lazy, Future};
+use futures::future::{lazy};
 use personal_search::indexer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -143,7 +143,7 @@ fn doc_to_json(retrieved_doc: &tantivy::Document, schema: &tantivy::schema::Sche
             })
             .unwrap_or_default(),
 
-        tags: tags,
+        tags,
         bookmarked: m
             .get("bookmarked")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
@@ -240,7 +240,7 @@ async fn attribute_array_request(
     match info.action.as_str() {
         "add" => {
             let tag = info.value.trim().clone().to_string();
-            let tag = if tag.starts_with("/") {
+            let tag = if tag.starts_with('/') {
                 tag
             } else {
                 format!("/{}/{}", info.field, tag)
@@ -250,7 +250,7 @@ async fn attribute_array_request(
         }
         "remove" => {
             let tag = info.value.trim().clone().to_string();
-            let tag = if tag.starts_with("/") {
+            let tag = if tag.starts_with('/') {
                 tag
             } else {
                 format!("/{}/{}", info.field, tag)
@@ -381,7 +381,7 @@ async fn update_settings(
     }
 
     if let Some(enabled) = &info.indexer_enabled {
-        settings.indexer_enabled = enabled.clone();
+        settings.indexer_enabled = *enabled;
     }
     if let Some(ignore_domains) = &info.ignore_domains {
         settings.ignore_domains = ignore_domains.clone();

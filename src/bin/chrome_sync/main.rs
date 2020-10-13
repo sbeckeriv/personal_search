@@ -1,13 +1,13 @@
 extern crate probabilistic_collections;
 use chrono::{TimeZone, Utc};
-use glob::glob;
+
 use personal_search::indexer;
-use rusqlite::{params, Connection, Result};
-use std::collections::HashSet;
+use rusqlite::{params, Connection};
+
 
 use std::io::prelude::*;
 use std::io::Read;
-use std::iter::FromIterator;
+
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
@@ -49,7 +49,7 @@ struct Places {
 }
 
 use std::fs::OpenOptions;
-use toml::Value;
+
 fn main() -> tantivy::Result<()> {
     let opt = Opt::from_args();
     let _index = indexer::search_index().unwrap();

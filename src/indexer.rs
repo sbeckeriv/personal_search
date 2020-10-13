@@ -1,5 +1,5 @@
 use chrono::prelude::*;
-use dirs;
+
 use glob::glob;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
@@ -22,8 +22,8 @@ use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
-use ureq;
-use url;
+
+
 
 pub enum GetterResults {
     Html(String),
@@ -96,8 +96,8 @@ lazy_static::lazy_static! {
     pub static ref CACHEDCONFIG: SystemSettings = read_settings();
     pub static ref BASE_INDEX_DIR: String = match env::var("PS_INDEX_DIRECTORY") {
         Ok(val) => {
-            if val.ends_with("/"){
-                val.to_string()
+            if val.ends_with('/'){
+                val
             }else{
                 format!("{}/",val)
             }
@@ -561,7 +561,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
             for keyword in meta.tags_add.unwrap_or_default() {
                 doc.add_facet(
                     index.schema().get_field("tags").expect("tags"),
-                    Facet::from(&format!("{}", keyword)),
+                    Facet::from(&keyword.to_string()),
                 );
             }
         }
@@ -663,7 +663,7 @@ pub fn read_source(url_hash: &str) -> String {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
     let input = File::open(source_path.join(format!("{}.jsonc", url_hash)))
-        .expect(&format!("read source {}", url_hash));
+        .unwrap_or_else(|_| panic!("read source {}", url_hash));
 
     let mut reader = brotli::Decompressor::new(
         input, 4096, // buffer size
@@ -756,10 +756,10 @@ pub fn backfill_from_cached() {
             }
             let file_string = file.to_str().expect("file_path");
             let url_hash = file_string.replace(".jsonc", "");
-            let url_hash = url_hash.split("/").last().unwrap();
+            let url_hash = url_hash.split('/').last().unwrap();
             let doc = update_document(&url_hash, &index, UrlMeta::default());
             index_writer.add_document(doc);
-            counter = counter + 1;
+            counter += 1;
         }
     }
     index_writer.commit().expect("last commit");
