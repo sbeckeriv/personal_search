@@ -32,6 +32,7 @@ pub enum GetterResults {
 }
 pub trait IndexGetter {
     fn get_url(&self, url: &str) -> GetterResults {
+        dbg!(&url);
         let agent = ureq::Agent::default().build();
         let res = agent.get(url).timeout(Duration::new(10, 0)).call();
 

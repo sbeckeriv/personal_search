@@ -5,7 +5,7 @@ authors = ["becker <github@deathbyescalator.com>"]
 edition = "2018"
 
 [features]
-firefox_sync = [ "rusqlite" ]
+sync = [ "rusqlite" ]
 server = ["tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 
 [dependencies]
@@ -43,9 +43,14 @@ env_logger = { version =  "0.7", optional = true }
 json =  { version = "0.12", optional = true }
 
 [[bin]]
+name = "chrome_sync"
+path = "src/bin/chrome_sync/main.rs"
+features = ["sync"]
+
+[[bin]]
 name = "firefox_sync"
 path = "src/bin/firefox_sync/main.rs"
-features = ["firefox_sync"]
+features = ["sync"]
 
 [[bin]]
 name = "server"
