@@ -1,5 +1,4 @@
 use chrono::prelude::*;
-
 use glob::glob;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
@@ -23,8 +22,6 @@ use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
 
-
-
 pub enum GetterResults {
     Html(String),
     Text(String),
@@ -32,18 +29,18 @@ pub enum GetterResults {
 }
 pub trait IndexGetter {
     fn get_url(&self, url: &str) -> GetterResults {
-        dbg!(&url);
         let agent = ureq::Agent::default().build();
         let res = agent.get(url).timeout(Duration::new(10, 0)).call();
 
         if let Some(lower) = res.header("Content-Type") {
-            dbg!(&lower);
             let lower = lower.to_lowercase();
-            if lower == ""
-                || lower.contains("html")
-                || (lower.contains("text") && !lower.contains("javascript"))
-            {
-                GetterResults::Html(res.into_string().unwrap_or("".to_string()))
+            if lower == "" || lower.contains("html") {
+                GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
+            } else if (lower.contains("text") && !lower.contains("javascript")) {
+                GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
+            } else if lower.contains("pdf") {
+                //GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
+                GetterResults::Nothing
             } else {
                 GetterResults::Nothing
             }
@@ -115,20 +112,23 @@ lazy_static::lazy_static! {
 }
 
 pub fn write_settings(config: &SystemSettings) {
-    let path_name = format!("{}/server_settings.toml", BASE_INDEX_DIR.to_string());
+    let path = Path::new(BASE_INDEX_DIR.as_str());
+    let path_name = path.join("server_settings.toml");
     create_directory(&BASE_INDEX_DIR);
-    let file = OpenOptions::new()
+    let mut file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(&path_name);
-    file.expect("setting file write")
-        .write_all(toml::to_string(&config).unwrap().as_bytes())
+        .open(&path_name)
+        .expect("setting file write");
+    file.write_all(toml::to_string(&config).unwrap().as_bytes())
         .expect("file");
+    file.sync_all().expect("file write");
 }
 
 pub fn read_settings() -> SystemSettings {
-    let path_name = format!("{}/server_settings.toml", BASE_INDEX_DIR.to_string());
+    let path = Path::new(BASE_INDEX_DIR.as_str());
+    let path_name = path.join("server_settings.toml");
     dbg!(&path_name);
     create_directory(&BASE_INDEX_DIR);
     let mut s = String::new();
@@ -144,7 +144,7 @@ pub fn read_settings() -> SystemSettings {
         }
         Ok(mut file) => {
             if let Err(why) = file.read_to_string(&mut s) {
-                panic!("couldn't read {}: {}", path_name, why)
+                panic!("couldn't read {:#?}: {}", path_name.to_str(), why)
             };
         }
     };
@@ -244,28 +244,6 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
             )))
         }
     }
-}
-
-pub fn get_url(url: &str) -> Result<String, ureq::Error> {
-    let agent = ureq::Agent::default().build();
-    let res = agent.get(url).timeout(Duration::new(10, 0)).call();
-
-    let body = if let Some(lower) = res.header("Content-Type") {
-        dbg!(&lower);
-        let lower = lower.to_lowercase();
-        if lower == ""
-            || lower.contains("html")
-            || (lower.contains("text") && !lower.contains("javascript"))
-        {
-            res.into_string().unwrap_or("".to_string())
-        } else {
-            "".to_string()
-        }
-    } else {
-        "".to_string()
-    };
-
-    Ok(body)
 }
 
 pub fn searcher(index: &Index) -> tantivy::LeasedItem<tantivy::Searcher> {
@@ -439,6 +417,21 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
 
     let mut doc = tantivy::Document::default();
     match getter.get_url(&url) {
+        GetterResults::Text(body) => {
+            doc.add_text(index.schema().get_field("content").expect("content"), &body);
+            let mut short_body = body;
+            let mut new_len = 150;
+            // prevent panics by finding a safe spot to slice
+            while !short_body.is_char_boundary(new_len) {
+                new_len += 1;
+            }
+            short_body.truncate(new_len);
+            doc.add_text(
+                index.schema().get_field("summary").expect("summary"),
+                &short_body,
+            );
+        }
+
         GetterResults::Html(body) => {
             println!("processing {}", &url);
             let document = document::Document::from(body.as_str());
@@ -532,12 +525,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
                 &description,
             );
             doc.add_text(index.schema().get_field("title").expect("title"), &title);
-            doc.add_text(index.schema().get_field("url").expect("url"), &url);
 
-            doc.add_text(
-                index.schema().get_field("domain").expect("domain"),
-                parsed.domain().unwrap_or(""),
-            );
             let _found_urls = document
                 .find(select::predicate::Name("a"))
                 .filter_map(|n| n.attr("href"))
@@ -567,6 +555,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
         }
         _ => {}
     }
+
     doc.add_text(index.schema().get_field("url").expect("url"), &url);
 
     doc.add_text(

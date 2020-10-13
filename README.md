@@ -19,9 +19,10 @@ Alpha level. You need to install start jobs and cron jobs manually. You might ne
 
 open http://localhost:7172/index.html and configure domains to ignore and then turn on the indexer.
 
-manually run the indexer - firefox
+manually run the indexer
 
-`cargo run --bin firefox_sync --features="firefox_sync" --release`
+`cargo run --bin firefox_sync --features="sync" --release`
+`cargo run --bin chrome_sync --features="sync" --release`
 
 the first run should index your last 1000 history if you turned on the index in the site config.
 
@@ -29,7 +30,7 @@ cron the indexer..
 
 # Pin current page
 
-Add a bookmarklet to pin the current page you are looking at. If the url has not been index yet it will import it and pin it.
+Add a bookmarklet to pin the current page you are looking at. If the url has not been index yet it will import it and pin it. This will depend on the sites cors configuration.
 
 ```
 javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&value=1&url="+document.location).then(data=> data.json()).then(result=> alert("pinned: "+document.location));}());
@@ -40,10 +41,16 @@ javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&v
 Open search is supported. In firefox I added it as a search engine with a keyword. I can type "ps postgres" and it will go to http://localhost:7172/index.html?q=postgres
 
 # Development
+
 use `PS_INDEX_DIRECTORY=test/private_search` to test
 
-places.sqlite is a 30 url file to test different states.
-`cargo run --bin firefox_sync --features="firefox_sync" -- --db test/places.sqlite --backfill`
+Test files
+
+places.sqlite is a 30 url file to test different states. chrome History is about the same. I use firefox more.
+
+`cargo run --bin firefox_sync --features="sync" -- --db test/places.sqlite --backfill`
+
+`cargo run --bin chrome_sync --features="sync" -- --db test/History --backfill`
 
 index a single url
 `cargo run --bin personal_search -- --import_url https://docs.rs/tantivy/0.13.1/tantivy/schema/struct.FieldValue.html`
@@ -55,7 +62,7 @@ more options under help
 `cargo run --bin personal_search -- --help`
 
 # Using
+
 tantivy for search
 Yew for the front end
 Actix for the server
-
