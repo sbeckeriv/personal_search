@@ -286,6 +286,12 @@ impl Component for Settings {
 #[derive(Serialize, Deserialize, Debug)]
 struct SearchArray {
     results: Vec<SearchJson>,
+    meta: Option<SearchMeta>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct SearchMeta {
+    document_count: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

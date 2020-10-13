@@ -61,8 +61,13 @@ query test
 more options under help
 `cargo run --bin personal_search -- --help`
 
+Yew:
+
+under the search folder `yarn build` and refresh the page. It uses parcel. rust files are under crate folder. In there run cargo build.
+
 # Using
 
 tantivy for search
 Yew for the front end
+Actix for the server
 Actix for the server
