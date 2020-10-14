@@ -43,3 +43,5 @@ features = [
   'Window',
 ]
 
+[profile.release]
+opt-level = "z"
