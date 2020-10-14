@@ -1,5 +1,6 @@
 use chrono::prelude::*;
 use glob::glob;
+use lopdf;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
@@ -11,7 +12,9 @@ use std::convert::TryInto;
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io::prelude::*;
 use std::io::Read;
+use std::io::SeekFrom;
 use std::io::Write;
 use std::panic;
 use std::path::Path;
@@ -20,6 +23,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
+use tempfile::NamedTempFile;
 use triple_accel::hamming;
 
 pub enum GetterResults {
@@ -32,16 +36,39 @@ pub trait IndexGetter {
         let agent = ureq::Agent::default().build();
         let res = agent.get(url).timeout(Duration::new(10, 0)).call();
         dbg!(&res);
+        let error = format!("{} status: {} {}", url, res.status_text(), res.status());
         if res.status() < 300 {
+            dbg!(&res.header("Content-Type"));
             if let Some(lower) = res.header("Content-Type") {
                 let lower = lower.to_lowercase();
                 if lower == "" || lower.contains("html") {
                     GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
                 } else if lower.contains("text") && !lower.contains("javascript") {
                     GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
-                } else if lower.contains("pdf") {
-                    //GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
-                    GetterResults::Nothing
+                } else if url.contains(".pdf") {
+                    let reader = res.into_reader();
+                    //let mut file = NamedTempFile::new().expect("tempfile create");
+                    //file.write_all(reader.as_bytes()).expect("write");
+                    //file.reopen().expect("file");
+                    //let (file, path) = file.keep().expect("keep");
+                    //dbg!(&file, &path);
+                    let doc = lopdf::Document::load_from(reader).expect("pdf load");
+                    let pages = doc.page_iter().count();
+
+                    let mut vec: Vec<u32> = vec![];
+                    let mut i = 1;
+                    while i < pages {
+                        vec.push(i.try_into().expect("page convert"));
+                        i += 1;
+                    }
+                    let extract = doc.extract_text(&vec);
+                    if let Ok(text) = extract {
+                        dbg!(&text);
+                        GetterResults::Text(text.clone())
+                    } else {
+                        dbg!(&extract);
+                        GetterResults::Nothing
+                    }
                 } else {
                     GetterResults::Nothing
                 }
@@ -49,7 +76,7 @@ pub trait IndexGetter {
                 GetterResults::Nothing
             }
         } else {
-            println!("{} status: {} {}", url, res.status_text(), res.status());
+            println!("{}", error);
             GetterResults::Nothing
         }
     }
