@@ -43,5 +43,3 @@ features = [
   'Window',
 ]
 
-[profile.release]
-opt-level = 's'
