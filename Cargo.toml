@@ -5,14 +5,13 @@ authors = ["becker <github@deathbyescalator.com>"]
 edition = "2018"
 
 [features]
+ml = ["rust-bert"]
 sync = [ "rusqlite" ]
 server = ["tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 
 [dependencies]
 tantivy = "0.13.2"
 ureq = "*"
-tempfile = "*"
-pdf-extract = "*"
 select = "*"
 chrono = "*"
 lazy_static = "*"
@@ -24,16 +23,11 @@ serde_json =  { version = "1" }
 glob = "*"
 url = "*"
 dirs = "*"
-
 probabilistic-collections = { version = "*", features = ["serde"] }
 triple_accel =  { version = "*" }
 md5 =  { version = "*"}
-rust-bert ={ version = "*" }
-
-
+rust-bert = { version = "*", optional = true }
 rusqlite = { version = "*", optional = true, features= ["bundled","chrono","unlock_notify"] }
-
-
 tokio = { version="*", optional = true}
 actix-web =  { version = "3", optional = true }
 actix-files =  { version = "*", optional = true }
@@ -46,12 +40,14 @@ json =  { version = "0.12", optional = true }
 [[bin]]
 name = "chrome_sync"
 path = "src/bin/chrome_sync/main.rs"
-features = ["sync"]
+features = ["sync", "ml"]
+default= ["sync"]
 
 [[bin]]
 name = "firefox_sync"
 path = "src/bin/firefox_sync/main.rs"
-features = ["sync"]
+features = ["sync", "ml"]
+default =["sync"]
 
 [[bin]]
 name = "server"

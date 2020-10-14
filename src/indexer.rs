@@ -2,6 +2,7 @@ use chrono::prelude::*;
 use glob::glob;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
+#[cfg(feature = "ml")]
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
 use select::document;
 use serde::{Deserialize, Serialize};
@@ -416,6 +417,53 @@ pub fn update_cached(
     index_writer.commit().expect("commit");
     write_source(url_hash, json);
 }
+
+#[cfg(not(feature = "ml"))]
+pub fn summary(body: &str) -> Option<String> {
+    let mut short_body = body.to_string();
+    let mut new_len = 150;
+    // prevent panics by finding a safe spot to slice
+    while !short_body.is_char_boundary(new_len) {
+        new_len += 1;
+    }
+    short_body.truncate(new_len);
+    Some(short_body.to_string())
+}
+
+#[cfg(feature = "ml")]
+pub fn summary(body: &str) -> Option<String> {
+    let config = SummarizationConfig::default();
+    if config.device.is_cuda() {
+        let result = panic::catch_unwind(|| {
+            let summarization_model =
+                SummarizationModel::new(config).expect("summarization_model fail");
+            let input = [body];
+            summarization_model.summarize(&input).join(" ")
+        });
+
+        match result {
+            Ok(results) => {
+                let results = results.replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "");
+                let results = results.trim();
+                Some(results.to_string())
+            }
+            _ => {
+                println!("sum error");
+                None
+            }
+        }
+    } else {
+        let mut short_body = body.to_string();
+        let mut new_len = 150;
+        // prevent panics by finding a safe spot to slice
+        while !short_body.is_char_boundary(new_len) {
+            new_len += 1;
+        }
+        short_body.truncate(new_len);
+        Some(short_body.to_string())
+    }
+}
+
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
     let url_hash = md5_hash(&url);
     let parsed = url::Url::parse(&url).expect("url pase");
@@ -481,37 +529,10 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
 
                 if !dup {
                     doc.add_text(index.schema().get_field("content").expect("content"), &body);
-                    let config = SummarizationConfig::default();
-                    if config.device.is_cuda() {
-                        let result = panic::catch_unwind(|| {
-                            let summarization_model =
-                                SummarizationModel::new(config).expect("summarization_model fail");
-                            let input = [body.as_str()];
-                            summarization_model.summarize(&input).join(" ")
-                        });
-
-                        match result {
-                            Ok(results) => {
-                                doc.add_text(
-                            index.schema().get_field("summary").expect("summary"),
-                            &results.replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "").trim(),
-                        );
-                            }
-                            _ => {
-                                println!("sum error");
-                            }
-                        };
-                    } else {
-                        let mut short_body = body;
-                        let mut new_len = 150;
-                        // prevent panics by finding a safe spot to slice
-                        while !short_body.is_char_boundary(new_len) {
-                            new_len += 1;
-                        }
-                        short_body.truncate(new_len);
+                    if let Some(summary) = summary(&body) {
                         doc.add_text(
                             index.schema().get_field("summary").expect("summary"),
-                            &short_body,
+                            &summary,
                         );
                     }
                 } else {
