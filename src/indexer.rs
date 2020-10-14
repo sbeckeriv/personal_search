@@ -31,20 +31,25 @@ pub trait IndexGetter {
     fn get_url(&self, url: &str) -> GetterResults {
         let agent = ureq::Agent::default().build();
         let res = agent.get(url).timeout(Duration::new(10, 0)).call();
-
-        if let Some(lower) = res.header("Content-Type") {
-            let lower = lower.to_lowercase();
-            if lower == "" || lower.contains("html") {
-                GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
-            } else if lower.contains("text") && !lower.contains("javascript") {
-                GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
-            } else if lower.contains("pdf") {
-                //GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
-                GetterResults::Nothing
+        dbg!(&res);
+        if res.status() < 300 {
+            if let Some(lower) = res.header("Content-Type") {
+                let lower = lower.to_lowercase();
+                if lower == "" || lower.contains("html") {
+                    GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
+                } else if lower.contains("text") && !lower.contains("javascript") {
+                    GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
+                } else if lower.contains("pdf") {
+                    //GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
+                    GetterResults::Nothing
+                } else {
+                    GetterResults::Nothing
+                }
             } else {
                 GetterResults::Nothing
             }
         } else {
+            println!("{} status: {} {}", url, res.status_text(), res.status());
             GetterResults::Nothing
         }
     }
@@ -629,6 +634,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl
             if parsed.domain().is_none() {
                 return;
             }
+            dbg!(&url);
             remote_index(&url, &index, meta, getter)
         };
     }

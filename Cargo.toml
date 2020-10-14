@@ -11,8 +11,9 @@ server = ["tokio", "actix-web","actix-cors", "actix-files", "actix-service", "fu
 [dependencies]
 tantivy = "0.13.2"
 ureq = "*"
-select = "*"
 tempfile = "*"
+pdf-extract = "*"
+select = "*"
 chrono = "*"
 lazy_static = "*"
 toml = "*"

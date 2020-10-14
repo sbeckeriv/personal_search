@@ -5,8 +5,43 @@
     <meta http-equiv="Content-type" content="text/html; charset=utf-8">
     <link rel="icon" href="/favicon.26242483.ico" type="image/x-icon">
     <title>!!</title>
-    <style>body {
+    <style>/* fallback */
+    @font-face {
+      font-family: 'Material Icons';
+      font-style: normal;
+      font-weight: 400;
+      src: url(/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.9261e1a2.woff2) format('woff2');
+    }
+
+    .material-icons {
+      font-family: 'Material Icons';
+      font-weight: normal;
+      font-style: normal;
+      font-size: 24px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      -moz-font-feature-settings: 'liga';
+      -moz-osx-font-smoothing: grayscale;
+    }
+      html,
+      body {
+        background: black !important;
+        color: white !important;
         height: 100%;
+      }
+      i{
+        color: #bdbdbd !important;
+      }
+      body {
+        height: 100%;
+        width: 100%;
+      }
+      .pushpin {
         width: 100%;
       }
       .search-pinned {
@@ -20,6 +55,7 @@
       }
 
       .collection {
+
         background: black !important;
         color: white !important;
         border: none !important;
@@ -33,9 +69,6 @@
         border: none !important;
         border-bottom: 1px solid;
       }</style>
-    <!--Import Google Icon Font-->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <!--Import materialize.css-->
     <link type="text/css" rel="stylesheet" href="/materialize.min.64694632.css" media="screen,projection">
     <script src="/js.00a46daa.js"></script>
     <script src="/materialize.min.f120bc19.js"></script>
@@ -43,9 +76,11 @@
   setTimeout(function () {
     var elems = document.querySelectorAll(".modal");
     var instances = M.Modal.init(elems, {});
+    var elems = document.querySelectorAll(".pushpin"); //var instances = M.Pushpin.init(elems, { top: 100 });
   }, 200);
 };</script>
     <link rel="search" type="application/opensearchdescription+xml" title="Private Search" href="/search.eacdacdd.xml">
   </head>
-  <body></body>
+  <body class="black"></body>
 </html>
+

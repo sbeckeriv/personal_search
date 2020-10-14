@@ -123,7 +123,7 @@ parcelRequire = (function (modules, cache, entry, globalName) {
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.__wbindgen_closure_wrapper673 = exports.__wbindgen_closure_wrapper526 = exports.__wbindgen_throw = exports.__wbindgen_debug_string = exports.__wbindgen_string_get = exports.__wbg_set_304f2ec1a3ab3b79 = exports.__wbg_global_e16303fe83e1d57f = exports.__wbg_globalThis_b9277fc37e201fe5 = exports.__wbg_window_ba85d88572adc0dc = exports.__wbg_self_07b2f89e82ceb76d = exports.__wbg_then_3b7ac098cfda2fa5 = exports.__wbg_then_4a7a614abbbe6d81 = exports.__wbg_resolve_2529512c3bb73938 = exports.__wbg_new_3e06d4f36713e4cb = exports.__wbg_is_333329c4a02916de = exports.__wbg_newnoargs_f3b8a801d5d4b079 = exports.__wbg_toString_ae4f72e88ee70451 = exports.__wbg_push_b46eeec52d2b03bb = exports.__wbg_from_2a5d647e62275bfd = exports.__wbg_new_e13110f81ae347cf = exports.__wbg_call_8e95613cc6524977 = exports.__wbg_get_0e3f2950cdf758ae = exports.__wbg_iterator_09191f8878ea9877 = exports.__wbg_value_e60bbfb7d52af62f = exports.__wbg_done_037d0a173aef1834 = exports.__wbg_next_2966fa909601a075 = exports.__wbg_next_edda7e0003e5daf9 = exports.__wbindgen_is_object = exports.__wbindgen_is_function = exports.__wbg_get_27693110cb44e852 = exports.__wbg_newwithstrsequencesequence_08147e83d5fd2c0a = exports.__wbg_search_a4c05bf02f7d5a27 = exports.__wbg_removeChild_f4829fcd2e376e1b = exports.__wbg_insertBefore_ea385f1d7ec76e50 = exports.__wbg_appendChild_77215fd672b162c5 = exports.__wbg_textContent_26582d13b9c5ea07 = exports.__wbg_setnodeValue_ec452cd3716fee72 = exports.__wbg_lastChild_4a41600911ce94c7 = exports.__wbg_fetch_8121e255050852c0 = exports.__wbg_log_3bafd82835c6de6d = exports.__wbg_setAttribute_727bdb9763037624 = exports.__wbg_removeAttribute_a705c6de4bb158c4 = exports.__wbg_namespaceURI_a4d52538ca0c6bae = exports.__wbg_removeEventListener_9ffcd175e0916270 = exports.__wbg_addEventListener_f0baf69c9c7425c9 = exports.__wbg_abort_bedcd7330ee18c55 = exports.__wbg_new_a82a2c2e1595c56f = exports.__wbg_signal_0017288388f0d141 = exports.__wbg_setvalue_839acf17e43a847f = exports.__wbg_value_bff6f7ef104e077a = exports.__wbg_settype_4f9e0a597bc38efe = exports.__wbg_setchecked_1a89c058f5ac906a = exports.__wbg_instanceof_HtmlInputElement_aaef9fb14eceaa9b = exports.__wbg_newwithstrandinit_d1de1bfcd175e38a = exports.__wbg_settype_98bff8074314478e = exports.__wbg_instanceof_HtmlButtonElement_645b6f9d0d172e00 = exports.__wbg_text_966d07536ca6ccdc = exports.__wbg_arrayBuffer_dc33ab7b8cdf0d63 = exports.__wbg_headers_c736e1fe38752cff = exports.__wbg_status_eb6dbb31556c329f = exports.__wbg_setvalue_1012134a2989f3ee = exports.__wbg_value_91d41b8dbd0b2f0b = exports.__wbg_instanceof_HtmlTextAreaElement_6c876047bbe08f92 = exports.__wbg_querySelector_69fd5cd784bcc892 = exports.__wbg_createTextNode_b3c9e3cb02f83ab5 = exports.__wbg_createElementNS_ea14cb45a87a0719 = exports.__wbg_createElement_5bdf88a5af9f17c5 = exports.__wbg_location_9835be61b5ee5ab0 = exports.__wbg_fetch_1893f81c58855a39 = exports.__wbg_document_6cc8d0b87c0a99b9 = exports.__wbg_instanceof_Window_adf3196bdc02b386 = exports.__wbg_error_4bb6c2a97407129a = exports.__wbg_stack_558ba5917b466edd = exports.__wbg_new_59cb74e423758ede = exports.__wbindgen_string_new = exports.__wbg_WorkerGlobalScope_67f1db380a5f80e1 = exports.__wbindgen_is_undefined = exports.__wbg_Window_2b331ff7d706970d = exports.__wbindgen_object_clone_ref = exports.__wbindgen_cb_drop = exports.__wbindgen_object_drop_ref = exports.run = exports.default = void 0;
+exports.__wbindgen_closure_wrapper678 = exports.__wbindgen_closure_wrapper531 = exports.__wbindgen_throw = exports.__wbindgen_debug_string = exports.__wbindgen_string_get = exports.__wbg_set_304f2ec1a3ab3b79 = exports.__wbg_global_e16303fe83e1d57f = exports.__wbg_globalThis_b9277fc37e201fe5 = exports.__wbg_window_ba85d88572adc0dc = exports.__wbg_self_07b2f89e82ceb76d = exports.__wbg_then_3b7ac098cfda2fa5 = exports.__wbg_then_4a7a614abbbe6d81 = exports.__wbg_resolve_2529512c3bb73938 = exports.__wbg_new_3e06d4f36713e4cb = exports.__wbg_is_333329c4a02916de = exports.__wbg_newnoargs_f3b8a801d5d4b079 = exports.__wbg_toString_ae4f72e88ee70451 = exports.__wbg_push_b46eeec52d2b03bb = exports.__wbg_from_2a5d647e62275bfd = exports.__wbg_new_e13110f81ae347cf = exports.__wbg_call_8e95613cc6524977 = exports.__wbg_get_0e3f2950cdf758ae = exports.__wbg_iterator_09191f8878ea9877 = exports.__wbg_value_e60bbfb7d52af62f = exports.__wbg_done_037d0a173aef1834 = exports.__wbg_next_2966fa909601a075 = exports.__wbg_next_edda7e0003e5daf9 = exports.__wbindgen_is_object = exports.__wbindgen_is_function = exports.__wbg_get_27693110cb44e852 = exports.__wbg_newwithstrsequencesequence_08147e83d5fd2c0a = exports.__wbg_search_a4c05bf02f7d5a27 = exports.__wbg_removeChild_f4829fcd2e376e1b = exports.__wbg_insertBefore_ea385f1d7ec76e50 = exports.__wbg_appendChild_77215fd672b162c5 = exports.__wbg_textContent_26582d13b9c5ea07 = exports.__wbg_setnodeValue_ec452cd3716fee72 = exports.__wbg_lastChild_4a41600911ce94c7 = exports.__wbg_fetch_8121e255050852c0 = exports.__wbg_log_3bafd82835c6de6d = exports.__wbg_setAttribute_727bdb9763037624 = exports.__wbg_removeAttribute_a705c6de4bb158c4 = exports.__wbg_namespaceURI_a4d52538ca0c6bae = exports.__wbg_removeEventListener_9ffcd175e0916270 = exports.__wbg_addEventListener_f0baf69c9c7425c9 = exports.__wbg_abort_bedcd7330ee18c55 = exports.__wbg_new_a82a2c2e1595c56f = exports.__wbg_signal_0017288388f0d141 = exports.__wbg_setvalue_839acf17e43a847f = exports.__wbg_value_bff6f7ef104e077a = exports.__wbg_settype_4f9e0a597bc38efe = exports.__wbg_setchecked_1a89c058f5ac906a = exports.__wbg_instanceof_HtmlInputElement_aaef9fb14eceaa9b = exports.__wbg_newwithstrandinit_d1de1bfcd175e38a = exports.__wbg_settype_98bff8074314478e = exports.__wbg_instanceof_HtmlButtonElement_645b6f9d0d172e00 = exports.__wbg_text_966d07536ca6ccdc = exports.__wbg_arrayBuffer_dc33ab7b8cdf0d63 = exports.__wbg_headers_c736e1fe38752cff = exports.__wbg_status_eb6dbb31556c329f = exports.__wbg_setvalue_1012134a2989f3ee = exports.__wbg_value_91d41b8dbd0b2f0b = exports.__wbg_instanceof_HtmlTextAreaElement_6c876047bbe08f92 = exports.__wbg_querySelector_69fd5cd784bcc892 = exports.__wbg_createTextNode_b3c9e3cb02f83ab5 = exports.__wbg_createElementNS_ea14cb45a87a0719 = exports.__wbg_createElement_5bdf88a5af9f17c5 = exports.__wbg_location_9835be61b5ee5ab0 = exports.__wbg_fetch_1893f81c58855a39 = exports.__wbg_document_6cc8d0b87c0a99b9 = exports.__wbg_instanceof_Window_adf3196bdc02b386 = exports.__wbg_error_4bb6c2a97407129a = exports.__wbg_stack_558ba5917b466edd = exports.__wbg_new_59cb74e423758ede = exports.__wbindgen_string_new = exports.__wbg_WorkerGlobalScope_67f1db380a5f80e1 = exports.__wbindgen_is_undefined = exports.__wbg_Window_2b331ff7d706970d = exports.__wbindgen_object_clone_ref = exports.__wbindgen_cb_drop = exports.__wbindgen_object_drop_ref = exports.run = exports.default = void 0;
 
 var _rust_parcel_bg = _interopRequireDefault(require("./pkg/rust_parcel_bg.wasm"));
 
@@ -291,325 +291,19 @@ var __wbindgen_debug_string = _rust_parcel_bg.default.__wbindgen_debug_string;
 exports.__wbindgen_debug_string = __wbindgen_debug_string;
 var __wbindgen_throw = _rust_parcel_bg.default.__wbindgen_throw;
 exports.__wbindgen_throw = __wbindgen_throw;
-var __wbindgen_closure_wrapper526 = _rust_parcel_bg.default.__wbindgen_closure_wrapper526;
-exports.__wbindgen_closure_wrapper526 = __wbindgen_closure_wrapper526;
-var __wbindgen_closure_wrapper673 = _rust_parcel_bg.default.__wbindgen_closure_wrapper673;
-exports.__wbindgen_closure_wrapper673 = __wbindgen_closure_wrapper673;
-},{"./pkg/rust_parcel_bg.wasm":"SqEn"}],"iMlC":[function(require,module,exports) {
-var define;
-(function webpackUniversalModuleDefinition(root, factory) {
-	if(typeof exports === 'object' && typeof module === 'object')
-		module.exports = factory();
-	else if(typeof define === 'function' && define.amd)
-		define("darkmode-js", [], factory);
-	else if(typeof exports === 'object')
-		exports["darkmode-js"] = factory();
-	else
-		root["darkmode-js"] = factory();
-})(typeof self !== 'undefined' ? self : this, function() {
-return /******/ (function(modules) { // webpackBootstrap
-/******/ 	// The module cache
-/******/ 	var installedModules = {};
-/******/
-/******/ 	// The require function
-/******/ 	function __webpack_require__(moduleId) {
-/******/
-/******/ 		// Check if module is in cache
-/******/ 		if(installedModules[moduleId]) {
-/******/ 			return installedModules[moduleId].exports;
-/******/ 		}
-/******/ 		// Create a new module (and put it into the cache)
-/******/ 		var module = installedModules[moduleId] = {
-/******/ 			i: moduleId,
-/******/ 			l: false,
-/******/ 			exports: {}
-/******/ 		};
-/******/
-/******/ 		// Execute the module function
-/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
-/******/
-/******/ 		// Flag the module as loaded
-/******/ 		module.l = true;
-/******/
-/******/ 		// Return the exports of the module
-/******/ 		return module.exports;
-/******/ 	}
-/******/
-/******/
-/******/ 	// expose the modules object (__webpack_modules__)
-/******/ 	__webpack_require__.m = modules;
-/******/
-/******/ 	// expose the module cache
-/******/ 	__webpack_require__.c = installedModules;
-/******/
-/******/ 	// define getter function for harmony exports
-/******/ 	__webpack_require__.d = function(exports, name, getter) {
-/******/ 		if(!__webpack_require__.o(exports, name)) {
-/******/ 			Object.defineProperty(exports, name, { enumerable: true, get: getter });
-/******/ 		}
-/******/ 	};
-/******/
-/******/ 	// define __esModule on exports
-/******/ 	__webpack_require__.r = function(exports) {
-/******/ 		if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
-/******/ 			Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
-/******/ 		}
-/******/ 		Object.defineProperty(exports, '__esModule', { value: true });
-/******/ 	};
-/******/
-/******/ 	// create a fake namespace object
-/******/ 	// mode & 1: value is a module id, require it
-/******/ 	// mode & 2: merge all properties of value into the ns
-/******/ 	// mode & 4: return value when already ns object
-/******/ 	// mode & 8|1: behave like require
-/******/ 	__webpack_require__.t = function(value, mode) {
-/******/ 		if(mode & 1) value = __webpack_require__(value);
-/******/ 		if(mode & 8) return value;
-/******/ 		if((mode & 4) && typeof value === 'object' && value && value.__esModule) return value;
-/******/ 		var ns = Object.create(null);
-/******/ 		__webpack_require__.r(ns);
-/******/ 		Object.defineProperty(ns, 'default', { enumerable: true, value: value });
-/******/ 		if(mode & 2 && typeof value != 'string') for(var key in value) __webpack_require__.d(ns, key, function(key) { return value[key]; }.bind(null, key));
-/******/ 		return ns;
-/******/ 	};
-/******/
-/******/ 	// getDefaultExport function for compatibility with non-harmony modules
-/******/ 	__webpack_require__.n = function(module) {
-/******/ 		var getter = module && module.__esModule ?
-/******/ 			function getDefault() { return module['default']; } :
-/******/ 			function getModuleExports() { return module; };
-/******/ 		__webpack_require__.d(getter, 'a', getter);
-/******/ 		return getter;
-/******/ 	};
-/******/
-/******/ 	// Object.prototype.hasOwnProperty.call
-/******/ 	__webpack_require__.o = function(object, property) { return Object.prototype.hasOwnProperty.call(object, property); };
-/******/
-/******/ 	// __webpack_public_path__
-/******/ 	__webpack_require__.p = "";
-/******/
-/******/
-/******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = "./src/index.js");
-/******/ })
-/************************************************************************/
-/******/ ({
-
-/***/ "./src/darkmode.js":
-/*!*************************!*\
-  !*** ./src/darkmode.js ***!
-  \*************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.default = exports.IS_BROWSER = void 0;
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
-
-var IS_BROWSER = typeof window !== 'undefined';
-exports.IS_BROWSER = IS_BROWSER;
-
-var Darkmode =
-/*#__PURE__*/
-function () {
-  function Darkmode(options) {
-    _classCallCheck(this, Darkmode);
-
-    if (!IS_BROWSER) {
-      return;
-    }
-
-    var defaultOptions = {
-      bottom: '32px',
-      right: '32px',
-      left: 'unset',
-      time: '0.3s',
-      mixColor: '#fff',
-      backgroundColor: '#fff',
-      buttonColorDark: '#100f2c',
-      buttonColorLight: '#fff',
-      label: '',
-      saveInCookies: true,
-      autoMatchOsTheme: true
-    };
-    options = Object.assign({}, defaultOptions, options);
-    var css = "\n      .darkmode-layer {\n        position: fixed;\n        pointer-events: none;\n        background: ".concat(options.mixColor, ";\n        transition: all ").concat(options.time, " ease;\n        mix-blend-mode: difference;\n      }\n\n      .darkmode-layer--button {\n        width: 2.9rem;\n        height: 2.9rem;\n        border-radius: 50%;\n        right: ").concat(options.right, ";\n        bottom: ").concat(options.bottom, ";\n        left: ").concat(options.left, ";\n      }\n\n      .darkmode-layer--simple {\n        width: 100%;\n        height: 100%;\n        top: 0;\n        left: 0;\n        transform: scale(1) !important;\n      }\n\n      .darkmode-layer--expanded {\n        transform: scale(100);\n        border-radius: 0;\n      }\n\n      .darkmode-layer--no-transition {\n        transition: none;\n      }\n\n      .darkmode-toggle {\n        background: ").concat(options.buttonColorDark, ";\n        width: 3rem;\n        height: 3rem;\n        position: fixed;\n        border-radius: 50%;\n        border:none;\n        right: ").concat(options.right, ";\n        bottom: ").concat(options.bottom, ";\n        left: ").concat(options.left, ";\n        cursor: pointer;\n        transition: all 0.5s ease;\n        display: flex;\n        justify-content: center;\n        align-items: center;\n      }\n\n      .darkmode-toggle--white {\n        background: ").concat(options.buttonColorLight, ";\n      }\n\n      .darkmode-toggle--inactive {\n        display: none;\n      }\n\n      .darkmode-background {\n        background: ").concat(options.backgroundColor, ";\n        position: fixed;\n        pointer-events: none;\n        z-index: -10;\n        width: 100%;\n        height: 100%;\n        top: 0;\n        left: 0;\n      }\n\n      img, .darkmode-ignore {\n        isolation: isolate;\n        display: inline-block;\n      }\n\n      @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {\n        .darkmode-toggle {display: none !important}\n      }\n\n      @supports (-ms-ime-align:auto), (-ms-accelerator:true) {\n        .darkmode-toggle {display: none !important}\n      }\n    ");
-    var layer = document.createElement('div');
-    var button = document.createElement('button');
-    var background = document.createElement('div');
-    button.innerHTML = options.label;
-    button.classList.add('darkmode-toggle--inactive');
-    layer.classList.add('darkmode-layer');
-    background.classList.add('darkmode-background');
-    var darkmodeActivated = window.localStorage.getItem('darkmode') === 'true';
-    var preferedThemeOs = options.autoMatchOsTheme && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var darkmodeNeverActivatedByAction = window.localStorage.getItem('darkmode') === null;
-
-    if (darkmodeActivated === true && options.saveInCookies || darkmodeNeverActivatedByAction && preferedThemeOs) {
-      layer.classList.add('darkmode-layer--expanded', 'darkmode-layer--simple', 'darkmode-layer--no-transition');
-      button.classList.add('darkmode-toggle--white');
-      document.body.classList.add('darkmode--activated');
-    }
-
-    document.body.insertBefore(button, document.body.firstChild);
-    document.body.insertBefore(layer, document.body.firstChild);
-    document.body.insertBefore(background, document.body.firstChild);
-    this.addStyle(css);
-    this.button = button;
-    this.layer = layer;
-    this.saveInCookies = options.saveInCookies;
-    this.time = options.time;
-  }
-
-  _createClass(Darkmode, [{
-    key: "addStyle",
-    value: function addStyle(css) {
-      var linkElement = document.createElement('link');
-      linkElement.setAttribute('rel', 'stylesheet');
-      linkElement.setAttribute('type', 'text/css');
-      linkElement.setAttribute('href', 'data:text/css;charset=UTF-8,' + encodeURIComponent(css));
-      document.head.appendChild(linkElement);
-    }
-  }, {
-    key: "showWidget",
-    value: function showWidget() {
-      var _this = this;
-
-      if (!IS_BROWSER) {
-        return;
-      }
-
-      var button = this.button;
-      var layer = this.layer;
-      var time = parseFloat(this.time) * 1000;
-      button.classList.add('darkmode-toggle');
-      button.classList.remove('darkmode-toggle--inactive');
-      button.setAttribute("aria-label", "Activate dark mode");
-      button.setAttribute("aria-checked", "false");
-      button.setAttribute("role", "checkbox");
-      layer.classList.add('darkmode-layer--button');
-      button.addEventListener('click', function () {
-        var isDarkmode = _this.isActivated();
-
-        if (!isDarkmode) {
-          layer.classList.add('darkmode-layer--expanded');
-          button.setAttribute('disabled', true);
-          setTimeout(function () {
-            layer.classList.add('darkmode-layer--no-transition');
-            layer.classList.add('darkmode-layer--simple');
-            button.removeAttribute('disabled');
-          }, time);
-        } else {
-          layer.classList.remove('darkmode-layer--simple');
-          button.setAttribute('disabled', true);
-          setTimeout(function () {
-            layer.classList.remove('darkmode-layer--no-transition');
-            layer.classList.remove('darkmode-layer--expanded');
-            button.removeAttribute('disabled');
-          }, 1);
-        }
-
-        button.classList.toggle('darkmode-toggle--white');
-        document.body.classList.toggle('darkmode--activated');
-        window.localStorage.setItem('darkmode', !isDarkmode);
-      });
-    }
-  }, {
-    key: "toggle",
-    value: function toggle() {
-      if (!IS_BROWSER) {
-        return;
-      }
-
-      var layer = this.layer;
-      var isDarkmode = this.isActivated();
-      var button = this.button;
-      layer.classList.toggle('darkmode-layer--simple');
-      document.body.classList.toggle('darkmode--activated');
-      window.localStorage.setItem('darkmode', !isDarkmode);
-      button.setAttribute("aria-label", "De-activate dark mode");
-      button.setAttribute("aria-checked", "true");
-    }
-  }, {
-    key: "isActivated",
-    value: function isActivated() {
-      if (!IS_BROWSER) {
-        return null;
-      }
-
-      return document.body.classList.contains('darkmode--activated');
-    }
-  }]);
-
-  return Darkmode;
-}();
-
-exports.default = Darkmode;
-
-/***/ }),
-
-/***/ "./src/index.js":
-/*!**********************!*\
-  !*** ./src/index.js ***!
-  \**********************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.default = void 0;
-
-var _darkmode = _interopRequireWildcard(__webpack_require__(/*! ./darkmode */ "./src/darkmode.js"));
-
-function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) { var desc = Object.defineProperty && Object.getOwnPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : {}; if (desc.get || desc.set) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } } newObj.default = obj; return newObj; } }
-
-var _default = _darkmode.default;
-/* eslint-disable */
-
-exports.default = _default;
-
-if (_darkmode.IS_BROWSER) {
-  (function (window) {
-    window.Darkmode = _darkmode.default;
-  })(window);
-}
-/* eslint-enable */
-
-
-module.exports = exports["default"];
-
-/***/ })
-
-/******/ });
-});
-
-},{}],"QvaY":[function(require,module,exports) {
+var __wbindgen_closure_wrapper531 = _rust_parcel_bg.default.__wbindgen_closure_wrapper531;
+exports.__wbindgen_closure_wrapper531 = __wbindgen_closure_wrapper531;
+var __wbindgen_closure_wrapper678 = _rust_parcel_bg.default.__wbindgen_closure_wrapper678;
+exports.__wbindgen_closure_wrapper678 = __wbindgen_closure_wrapper678;
+},{"./pkg/rust_parcel_bg.wasm":"SqEn"}],"QvaY":[function(require,module,exports) {
 "use strict";
 
 var _Cargo = _interopRequireDefault(require("../crate/Cargo.toml"));
 
-var _darkmodeJs = _interopRequireDefault(require("darkmode-js"));
-
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 _Cargo.default.run();
-
-new _darkmodeJs.default().showWidget();
-},{"../crate/Cargo.toml":"PfKt","darkmode-js":"iMlC"}],"Bh1I":[function(require,module,exports) {
+},{"../crate/Cargo.toml":"PfKt"}],"Bh1I":[function(require,module,exports) {
 var bundleURL = null;
 
 function getBundleURLCached() {
@@ -1388,13 +1082,13 @@ __exports.__wbindgen_throw = function(arg0, arg1) {
     throw new Error(getStringFromWasm0(arg0, arg1));
 };
 
-__exports.__wbindgen_closure_wrapper526 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 205, __wbg_adapter_22);
+__exports.__wbindgen_closure_wrapper531 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 206, __wbg_adapter_22);
     return addHeapObject(ret);
 };
 
-__exports.__wbindgen_closure_wrapper673 = function(arg0, arg1, arg2) {
-    var ret = makeMutClosure(arg0, arg1, 274, __wbg_adapter_25);
+__exports.__wbindgen_closure_wrapper678 = function(arg0, arg1, arg2) {
+    var ret = makeMutClosure(arg0, arg1, 275, __wbg_adapter_25);
     return addHeapObject(ret);
 };
 

@@ -744,18 +744,18 @@ impl App {
     fn header(&self) -> Html {
         html! {
         <header>
-        <nav class="top-nav">
-                <div class="nav-wrapper">
-                    <a href="#" data-target="slide-out" class="sidenav-trigger brand-logo"><i class="material-icons">{"menu"}</i></a>
-                    <div class="input-field">
-                        <input id="search" type="search" autocomplete="off" required=true value={self.search.clone()} oninput=self.link.callback(|e: InputData| Msg::Search(e.value))/>
-                        <label class="label-icon" for="search"><i class="material-icons">{"search"}</i></label>
+            <nav class="top-nav grey darken-3">
+                    <div class="nav-wrapper">
+                        <a href="#" data-target="slide-out" class="sidenav-trigger brand-logo"><i class="material-icons">{"menu"}</i></a>
+                        <div class="input-field">
+                            <input id="search" type="search" autocomplete="off" required=true value={self.search.clone()} oninput=self.link.callback(|e: InputData| Msg::Search(e.value))/>
+                            <label class="label-icon" for="search"><i class="material-icons">{"search"}</i></label>
+                        </div>
+                         <a class="btn-floating btn-large halfway-fab waves-effect waves-light grey modal-trigger" href="#setting_modal">
+                            <i class="material-icons">{"settings"}</i>
+                          </a>
                     </div>
-                     <a class="btn-floating btn-large halfway-fab waves-effect waves-light teal modal-trigger" href="#setting_modal">
-                        <i class="material-icons">{"settings"}</i>
-                      </a>
-                </div>
-        </nav>
+            </nav>
         </header>
         }
     }
@@ -834,8 +834,10 @@ impl Component for App {
         html! {
         <>
             { self.header() }
-            { self.content() }
-            { self.setting_modal() }
+            <main>
+                { self.content() }
+                { self.setting_modal() }
+            </main>
         </>
         }
     }
