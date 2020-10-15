@@ -647,6 +647,13 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl
             }
         };
 
+        // strip out of the fragment to reduce dup urls
+        let parsed = url::Url::parse(&url).expect("url pase");
+        let url = if let Some(fragment) = parsed.fragment() {
+            url.replace(&format!("#{}", fragment), "")
+        } else {
+            url
+        };
         let url_hash = md5_hash(&url);
         println!("indexing {} {}", &url_hash, &url);
         if url_skip(&url) {
@@ -659,8 +666,6 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl
             update_cached(&url_hash, &index, meta, &mut index_writer);
             index_writer.wait_merging_threads().expect("merge");
         } else {
-            let parsed = url::Url::parse(&url).expect("url pase");
-
             // covers ip only domains
             if parsed.domain().is_none() {
                 return;
