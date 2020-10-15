@@ -99,9 +99,11 @@ lazy_static::lazy_static! {
     pub static ref CACHEDCONFIG: SystemSettings = read_settings();
     pub static ref BASE_INDEX_DIR: String = match env::var("PS_INDEX_DIRECTORY") {
         Ok(val) => {
-            if val.ends_with('/'){
+            if val.ends_with('/') || val.ends_with('\\') {
                 val
-            }else{
+            }else if cfg!(target_os = "windows"){
+                format!("{}\\",val)
+            } else {
                 format!("{}/",val)
             }
         },
@@ -427,7 +429,7 @@ pub fn summary(body: &str) -> Option<String> {
         new_len += 1;
     }
     short_body.truncate(new_len);
-    Some(short_body.to_string())
+    Some(short_body)
 }
 
 #[cfg(feature = "ml")]
@@ -665,6 +667,7 @@ pub fn source_exists(filename: &str) -> bool {
     let source_path = index_path.join("source");
     source_path.join(format!("{}.jsonc", filename)).exists()
 }
+
 pub fn write_source(url_hash: &str, json: String) {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
@@ -756,8 +759,13 @@ pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAdd
 }
 
 pub fn backfill_from_cached() {
-    let path_name = ".private_search/source".to_string();
-    let entries = glob(&format!("{}/*.jsonc", path_name)).expect("Failed to read glob pattern");
+    let path = Path::new(BASE_INDEX_DIR.as_str());
+    let path_name = path.join("source");
+    let entries = glob(&format!(
+        "{}/*.jsonc",
+        path_name.to_str().expect("source_dir")
+    ))
+    .expect("Failed to read glob pattern");
     let mut counter = 0;
 
     let index = search_index().unwrap();
@@ -772,7 +780,11 @@ pub fn backfill_from_cached() {
             }
             let file_string = file.to_str().expect("file_path");
             let url_hash = file_string.replace(".jsonc", "");
-            let url_hash = url_hash.split('/').last().unwrap();
+            let url_hash = if cfg!(target_os = "windows") {
+                url_hash.split('\\').last().unwrap()
+            } else {
+                url_hash.split('/').last().unwrap()
+            };
             let doc = update_document(&url_hash, &index, UrlMeta::default());
             index_writer.add_document(doc);
             counter += 1;

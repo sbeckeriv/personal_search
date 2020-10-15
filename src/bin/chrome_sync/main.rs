@@ -4,7 +4,6 @@ use chrono::{TimeZone, Utc};
 use personal_search::indexer;
 use rusqlite::{params, Connection};
 
-
 use std::io::prelude::*;
 use std::io::Read;
 
@@ -29,13 +28,20 @@ fn find_places_file() -> Option<PathBuf> {
     //~/.config/chromium/Default/History
     let home = dirs::home_dir().expect("no home dir");
 
-    Some(
-        Path::new(&format!(
-            "{}/.config/google-chrome/Default/History",
+    let path = if cfg!(target_os = "linux") {
+        &format!("{}/.config/google-chrome/Default/History", home.display())
+    } else if cfg!(target_os = "macos") {
+        &format!(
+            "{}/Library/Application Support/Google/Chrome/Default/History",
             home.display()
-        ))
-        .into(),
-    )
+        )
+    } else {
+        &format!(
+            "{}\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\History",
+            home.display()
+        )
+    };
+    Some(Path::new(path).into())
 }
 #[derive(Debug)]
 struct Places {
@@ -57,7 +63,8 @@ fn main() -> tantivy::Result<()> {
         Some(arg_path) => Some(arg_path),
         None => find_places_file(),
     };
-    let path_name = ".private_search/chrome_sync_cache.toml".to_string();
+    let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
+    let path_name = path.join("chrome_sync_cache.toml").to_str().expect("cache");
     let mut s = String::new();
     let file = OpenOptions::new()
         .read(true)

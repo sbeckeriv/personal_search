@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -25,11 +25,20 @@ pub struct Opt {
 fn find_places_file() -> Option<PathBuf> {
     //~/.mozilla/firefox/xdfjt9cu.default/places.sqlite
     let home = dirs::home_dir().expect("no home dir");
-    let entries = glob(&format!(
-        "{}/.mozilla/firefox/*/places.sqlite",
-        home.display()
-    ))
-    .expect("Failed to read glob pattern");
+    let path = if cfg!(target_os = "linux") {
+        &format!("{}/.mozilla/firefox/*/places.sqlite", home.display())
+    } else if cfg!(target_os = "macos") {
+        &format!(
+            "{}/Library/Application Support/Firefox/Profiles/*/places.sqlite",
+            home.display()
+        )
+    } else {
+        &format!(
+            "{}\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\*\\places.sqlite",
+            home.display()
+        )
+    };
+    let entries = glob(path).expect("Failed to read glob pattern");
     let mut entries: Vec<PathBuf> = entries.filter_map(Result::ok).collect();
     entries.sort_by(|a, b| {
         b.metadata()
@@ -68,7 +77,11 @@ fn main() -> tantivy::Result<()> {
         Some(arg_path) => Some(arg_path),
         None => find_places_file(),
     };
-    let path_name = ".private_search/firefox_sync_cache.toml".to_string();
+    let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
+    let path_name = path
+        .join("firefox_sync_cache.toml")
+        .to_str()
+        .expect("cache");
     let mut s = String::new();
     let file = OpenOptions::new()
         .read(true)
