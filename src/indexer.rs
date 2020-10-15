@@ -81,10 +81,7 @@ impl Default for SystemSettings {
             ignore_strings: vec![],
             indexer_enabled: false,
             ignore_domains: vec![
-                "//127.0.0.1".to_string(),
-                "//192.168.".to_string(),
                 ".lvh.me".to_string(),
-                "//0.0.0.0".to_string(),
                 "//lvh.me".to_string(),
                 "//localhost/".to_string(),
                 "//localhost:".to_string(),
@@ -98,6 +95,12 @@ impl Default for SystemSettings {
                 "woot.com/".to_string(),
                 "imgur.com".to_string(),
                 "gstatic.com/".to_string(),
+                "slack.com".to_string(),
+                "facebook.com".to_string(),
+                "instagram.com".to_string(),
+                "pintrest.com".to_string(),
+                "zillow.com".to_string(),
+                "redfin.com".to_string(),
             ],
         }
     }
