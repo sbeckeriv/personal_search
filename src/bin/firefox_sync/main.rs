@@ -26,19 +26,19 @@ fn find_places_file() -> Option<PathBuf> {
     //~/.mozilla/firefox/xdfjt9cu.default/places.sqlite
     let home = dirs::home_dir().expect("no home dir");
     let path = if cfg!(target_os = "linux") {
-        &format!("{}/.mozilla/firefox/*/places.sqlite", home.display())
+        format!("{}/.mozilla/firefox/*/places.sqlite", home.display())
     } else if cfg!(target_os = "macos") {
-        &format!(
+        format!(
             "{}/Library/Application Support/Firefox/Profiles/*/places.sqlite",
             home.display()
         )
     } else {
-        &format!(
+        format!(
             "{}\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\*\\places.sqlite",
             home.display()
         )
     };
-    let entries = glob(path).expect("Failed to read glob pattern");
+    let entries = glob(&path).expect("Failed to read glob pattern");
     let mut entries: Vec<PathBuf> = entries.filter_map(Result::ok).collect();
     entries.sort_by(|a, b| {
         b.metadata()
@@ -78,10 +78,8 @@ fn main() -> tantivy::Result<()> {
         None => find_places_file(),
     };
     let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
-    let path_name = path
-        .join("firefox_sync_cache.toml")
-        .to_str()
-        .expect("cache");
+    let path = path.join("firefox_sync_cache.toml");
+    let path_name = path.to_str().expect("cache");
     let mut s = String::new();
     let file = OpenOptions::new()
         .read(true)

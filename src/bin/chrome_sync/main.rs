@@ -29,19 +29,19 @@ fn find_places_file() -> Option<PathBuf> {
     let home = dirs::home_dir().expect("no home dir");
 
     let path = if cfg!(target_os = "linux") {
-        &format!("{}/.config/google-chrome/Default/History", home.display())
+        format!("{}/.config/google-chrome/Default/History", home.display())
     } else if cfg!(target_os = "macos") {
-        &format!(
+        format!(
             "{}/Library/Application Support/Google/Chrome/Default/History",
             home.display()
         )
     } else {
-        &format!(
+        format!(
             "{}\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\History",
             home.display()
         )
     };
-    Some(Path::new(path).into())
+    Some(Path::new(&path).into())
 }
 #[derive(Debug)]
 struct Places {
@@ -64,7 +64,8 @@ fn main() -> tantivy::Result<()> {
         None => find_places_file(),
     };
     let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
-    let path_name = path.join("chrome_sync_cache.toml").to_str().expect("cache");
+    let path = path.join("chrome_sync_cache.toml");
+    let path_name = path.to_str().expect("cache");
     let mut s = String::new();
     let file = OpenOptions::new()
         .read(true)
