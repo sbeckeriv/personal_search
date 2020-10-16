@@ -17,6 +17,8 @@ pub struct Opt {
     facet_field: Option<String>,
     #[structopt(long = "backfillcached")]
     backfillcached: bool,
+    #[structopt(long = "movecachefiles")]
+    movecachefiles: bool,
     #[structopt(short = "s", long = "silent")]
     silent: bool,
     #[structopt(short = "v", long = "verbose")]
@@ -109,6 +111,38 @@ fn search(query: String, index: tantivy::Index) {
     }
 }
 
+// should never need this again. move from flat folder to sub dir
+fn movefiles() {
+    use glob::glob;
+    use std::path::Path;
+    let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
+    let path_name = path.join("source");
+    dbg!(&path_name);
+    let entries = glob(&format!(
+        "{}/*.jsonc",
+        path_name.to_str().expect("source_dir")
+    ))
+    .expect("Failed to read glob pattern");
+
+    for entry in entries {
+        if let Ok(file) = entry {
+            let base = file.parent().unwrap();
+            let dir_name = file.to_str().unwrap().to_string();
+
+            let filename = dir_name.split('/').last().unwrap();
+            dbg!(filename);
+            let mut new_dir_name = filename.clone().to_string();
+            new_dir_name.truncate(2);
+            dbg!(&new_dir_name);
+            dbg!(base.join(new_dir_name.clone()));
+            if let Ok(_) = std::fs::create_dir(base.join(new_dir_name.clone())) {}
+            let dir_path = base.join(new_dir_name.clone());
+            dbg!(dir_path.join(filename));
+            if let Ok(_) = std::fs::rename(file, dir_path.join(filename)) {}
+        }
+    }
+}
+
 fn main() -> tantivy::Result<()> {
     let index = indexer::search_index();
 
@@ -116,7 +150,9 @@ fn main() -> tantivy::Result<()> {
 
     match index {
         Ok(index) => {
-            if opt.backfillcached {
+            if opt.movecachefiles {
+                movefiles();
+            } else if opt.backfillcached {
                 indexer::backfill_from_cached();
             } else if let Some(query) = opt.query {
                 search(query, index);

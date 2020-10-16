@@ -12,7 +12,6 @@ use tantivy::collector::TopDocs;
 use tantivy::doc;
 use tantivy::query::AllQuery;
 use tantivy::query::QueryParser;
-use tokio::spawn;
 
 #[derive(StructOpt, Debug)]
 pub struct Opt {
@@ -277,7 +276,7 @@ async fn attribute_array_request(
         index_writer.wait_merging_threads().expect("merge");
     } else {
         let url = info.url.clone();
-        spawn(lazy(move |_| {
+        tokio::spawn(lazy(move |_| {
             indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
         }));
     }
@@ -337,7 +336,7 @@ async fn attribute_request(
         index_writer.wait_merging_threads().expect("merge");
     } else {
         let url = info.url.clone();
-        spawn(lazy(move |_| {
+        tokio::spawn(lazy(move |_| {
             println!("new");
             indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
         }));

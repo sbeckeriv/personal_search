@@ -713,12 +713,18 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl
 pub fn source_exists(filename: &str) -> bool {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
+    let mut dir = filename.clone().to_string();
+    dir.truncate(2);
+    let source_path = source_path.join(dir);
     source_path.join(format!("{}.jsonc", filename)).exists()
 }
 
 pub fn write_source(url_hash: &str, json: String) {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
+    let mut dir = url_hash.clone().to_string();
+    dir.truncate(2);
+    let source_path = source_path.join(dir);
     let output = File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
     let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
     writer
@@ -729,6 +735,9 @@ pub fn write_source(url_hash: &str, json: String) {
 pub fn read_source(url_hash: &str) -> String {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
+    let mut dir = url_hash.clone().to_string();
+    dir.truncate(2);
+    let source_path = source_path.join(dir);
     let input = File::open(source_path.join(format!("{}.jsonc", url_hash)))
         .unwrap_or_else(|_| panic!("read source {}", url_hash));
 
@@ -810,7 +819,7 @@ pub fn backfill_from_cached() {
     let path = Path::new(BASE_INDEX_DIR.as_str());
     let path_name = path.join("source");
     let entries = glob(&format!(
-        "{}/*.jsonc",
+        "{}/*/*.jsonc",
         path_name.to_str().expect("source_dir")
     ))
     .expect("Failed to read glob pattern");

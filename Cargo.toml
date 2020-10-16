@@ -19,7 +19,7 @@ futures =  { version = "0.3.1", optional = true }
 json =  { version = "0.12", optional = true }
 rusqlite = { version = "*", optional = true, features= ["bundled","chrono","unlock_notify"] }
 rust-bert = { version = "*", optional = true }
-tokio = { version="*", optional = true}
+tokio = { version="*", optional = true, features=["rt"] }
 tempfile = { version="*", optional = true}
 
 brotli = "*"
