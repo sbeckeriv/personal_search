@@ -181,8 +181,7 @@ fn search(query: String, limit: usize) -> Vec<SearchJson> {
     let query = if query.contains("hidden:") {
         query
     } else {
-        query
-        //format!("({} AND {})", query, "hidden:0")
+        format!("({} AND {})", query, "hidden:0")
     };
     dbg!(&query);
 

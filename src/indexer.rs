@@ -247,9 +247,12 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
     schema_builder.add_i64_field("duplicate", STORED | INDEXED);
     schema_builder.add_i64_field("content_hash", STORED | INDEXED);
     schema_builder.add_i64_field("pinned", STORED | INDEXED);
+    schema_builder.add_i64_field("hidden", STORED | INDEXED);
     schema_builder.add_i64_field("accessed_count", STORED);
-    schema_builder.add_date_field("added_at", STORED);
+    schema_builder.add_date_field("added_at", STORED | INDEXED);
     schema_builder.add_date_field("last_accessed_at", STORED | INDEXED);
+    schema_builder.add_i64_field("added_at_i", STORED | INDEXED);
+    schema_builder.add_i64_field("last_accessed_at_i", STORED | INDEXED);
     schema_builder.add_facet_field("tags");
 
     let schema = schema_builder.build();
@@ -393,24 +396,32 @@ pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document
         }
     }
     if let Some(last_visit) = meta.last_visit {
-        *json.get_mut("last_accessed_at").unwrap() = json!(last_visit.to_rfc3339());
+        json["last_accessed_at_i"] = json!(last_visit.to_rfc3339());
+        json["last_accessed_at_i"] = json!(last_visit.timestamp());
+    }
+    if json.get("last_accessed_at_i").is_none() {
+        json["last_accessed_at_i"] = json!(Utc::now().timestamp());
+    }
+
+    if json.get("added_at_i").is_none() {
+        json["added_at_i"] = json!(Utc::now().timestamp());
     }
 
     if let Some(pinned) = meta.pinned {
-        *json.get_mut("pinned").unwrap() = json!(vec![pinned]);
+        json["pinned"] = json!(vec![pinned]);
     }
 
     if let Some(hidden) = meta.hidden {
-        *json.get_mut("hidden").unwrap() = json!(vec![hidden]);
+        json["hidden"] = json!(vec![hidden]);
     }
 
     if let Some(accessed_count) = meta.access_count {
-        *json.get_mut("accessed_count").unwrap() = json!(vec![accessed_count]);
+        json["accessed_count"] = json!(vec![accessed_count]);
     }
 
     if let Some(bookmarked) = meta.bookmarked {
         let bookmarked = if bookmarked { 1 } else { 0 };
-        *json.get_mut("accessed_count").unwrap() = json!(vec![bookmarked]);
+        json["accessed_count"] = json!(vec![bookmarked]);
     }
     index
         .schema()
@@ -638,13 +649,25 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
         &Utc::now(),
     );
 
+    doc.add_i64(
+        index.schema().get_field("added_at_i").expect("added_at"),
+        Utc::now().timestamp(),
+    );
+
     let last_visit: DateTime<Utc> = meta.last_visit.unwrap_or_else(Utc::now);
     doc.add_date(
         index
             .schema()
             .get_field("last_accessed_at")
-            .expect("added_at"),
+            .expect("last_accessed_at"),
         &last_visit,
+    );
+    doc.add_i64(
+        index
+            .schema()
+            .get_field("last_accessed_at_i")
+            .expect("last_accessed_at_i"),
+        last_visit.timestamp(),
     );
     doc.add_i64(
         index.schema().get_field("pinned").expect("pinned"),
@@ -842,7 +865,9 @@ pub fn backfill_from_cached() {
             } else {
                 url_hash.split('/').last().unwrap()
             };
-            let doc = update_document(&url_hash, &index, UrlMeta::default());
+            let mut meta = UrlMeta::default();
+            meta.hidden = Some(0);
+            let doc = update_document(&url_hash, &index, meta);
             index_writer.add_document(doc);
             counter += 1;
         }
