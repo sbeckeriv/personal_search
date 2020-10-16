@@ -477,6 +477,24 @@ pub fn summary(body: &str) -> Option<String> {
     }
 }
 
+// from select.rs::text()
+pub fn text_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> String {
+    let mut string = String::new();
+    recur(node, &mut string, ignore_index);
+    return string;
+
+    fn recur(node: &select::node::Node, string: &mut String, ignore_index: &HashSet<usize>) {
+        if ignore_index.get(&node.raw().index).is_none() {
+            if let Some(text) = node.as_text() {
+                string.push_str(text);
+            }
+            for child in node.children() {
+                recur(&child, string, ignore_index)
+            }
+        }
+    }
+}
+
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
     let url_hash = md5_hash(&url);
     let parsed = url::Url::parse(&url).expect("url pase");
@@ -501,6 +519,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
         GetterResults::Html(body) => {
             println!("processing {}", &url);
             let document = document::Document::from(body.as_str());
+
             let title = match document.find(select::predicate::Name("title")).next() {
                 Some(node) => node.text(),
                 _ => meta.title.unwrap_or_else(|| "".to_string()),
@@ -517,9 +536,22 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
                 Some(node) => node,
                 _ => &empty,
             };
+            let mut ignore = HashSet::<usize>::new();
+
+            for name in vec!["script", "noscript", "style"].iter() {
+                for node in document.find(select::predicate::Name(name.clone())) {
+                    ignore.insert(node.raw().index);
+                }
+            }
 
             let body = match document.find(select::predicate::Name("body")).next() {
-                Some(node) => node.text().split_whitespace().collect::<Vec<_>>().join(" "),
+                Some(node) => {
+                    dbg!(text_ignore(&node, &ignore));
+                    text_ignore(&node, &ignore)
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                }
                 _ => {
                     // nothing to index
                     return;

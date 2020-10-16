@@ -10,32 +10,33 @@ sync = [ "rusqlite" ]
 server = ["tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 
 [dependencies]
-tantivy = "0.13.2"
-ureq = "*"
-select = "*"
-chrono = "*"
-lazy_static = "*"
-toml = "*"
-structopt = "*"
+actix-cors =  { version = "*", optional = true }
+actix-files =  { version = "*", optional = true }
+actix-service = { version =  "1", optional = true }
+actix-web =  { version = "3", optional = true }
+env_logger = { version =  "0.7", optional = true }
+futures =  { version = "0.3.1", optional = true }
+json =  { version = "0.12", optional = true }
+rusqlite = { version = "*", optional = true, features= ["bundled","chrono","unlock_notify"] }
+rust-bert = { version = "*", optional = true }
+tokio = { version="*", optional = true}
+
 brotli = "*"
+chrono = "*"
+dirs = "*"
+glob = "*"
+lazy_static = "*"
+md5 =  { version = "*"}
+probabilistic-collections = { version = "*", features = ["serde"] }
+select = "*"
 serde = { version = "1", features = ["derive"]}
 serde_json =  { version = "1" }
-glob = "*"
-url = "*"
-dirs = "*"
-probabilistic-collections = { version = "*", features = ["serde"] }
+structopt = "*"
+tantivy = "0.13.2"
+toml = "*"
 triple_accel =  { version = "*" }
-md5 =  { version = "*"}
-rust-bert = { version = "*", optional = true }
-rusqlite = { version = "*", optional = true, features= ["bundled","chrono","unlock_notify"] }
-tokio = { version="*", optional = true}
-actix-web =  { version = "3", optional = true }
-actix-files =  { version = "*", optional = true }
-actix-cors =  { version = "*", optional = true }
-actix-service = { version =  "1", optional = true }
-futures =  { version = "0.3.1", optional = true }
-env_logger = { version =  "0.7", optional = true }
-json =  { version = "0.12", optional = true }
+ureq = "*"
+url = "*"
 
 [[bin]]
 name = "chrome_sync"
