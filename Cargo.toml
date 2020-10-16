@@ -6,7 +6,7 @@ edition = "2018"
 
 [features]
 ml = ["rust-bert"]
-sync = [ "rusqlite" ]
+sync = [ "rusqlite", "tempfile" ]
 server = ["tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 
 [dependencies]
@@ -20,6 +20,7 @@ json =  { version = "0.12", optional = true }
 rusqlite = { version = "*", optional = true, features= ["bundled","chrono","unlock_notify"] }
 rust-bert = { version = "*", optional = true }
 tokio = { version="*", optional = true}
+tempfile = { version="*", optional = true}
 
 brotli = "*"
 chrono = "*"

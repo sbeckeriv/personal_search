@@ -4,12 +4,17 @@ use glob::glob;
 use personal_search::indexer;
 use rusqlite::{params, Connection, Result};
 use std::collections::HashSet;
+use std::fs;
 
 use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
+use tempfile::TempDir;
+
+use std::fs::OpenOptions;
+use toml::Value;
 
 #[derive(StructOpt, Debug)]
 pub struct Opt {
@@ -68,8 +73,6 @@ struct MozBookmarks {
     title: Option<String>,
 }
 
-use std::fs::OpenOptions;
-use toml::Value;
 fn main() -> tantivy::Result<()> {
     let opt = Opt::from_args();
     let _index = indexer::search_index().unwrap();
@@ -104,7 +107,11 @@ fn main() -> tantivy::Result<()> {
 
     match place {
         Some(place_file) => {
-            let conn = Connection::open(place_file).expect("opening sqlite file");
+            let tmp_dir = tempfile::TempDir::new().expect("tmp_dir");
+            let tempfile = tmp_dir.path().join("tmpfile");
+            let tempfile = tempfile.to_str().unwrap();
+            fs::copy(place_file, tempfile);
+            let conn = Connection::open(tempfile).expect("opening sqlite file");
             let mut stmt = conn
                 .prepare("SELECT id, fk, title FROM moz_bookmarks")
                 .expect("book prep");
