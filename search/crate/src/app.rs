@@ -574,8 +574,8 @@ impl SearchResults {
             <>
                 <a class="dropdown-trigger secondary-content" href="#" data-target=format!("dropdown-{}",id)><i class="material-icons">{"arrow_drop_down"}</i> </a>
                 <ul id=format!("dropdown-{}",id) class="dropdown-content">
-                    <li><a href="#!" onclick=self.link.callback(move |e| Msg::Hide(base_url.clone())) >{"hide url"}</a></li>
-                    <li><a href="#!" onclick=self.link.callback(move |e| Msg::HideDomain(base2_url.clone())) >{"hide domain"}</a></li>
+                    <li class="clickclose"><a href="#!" onclick=self.link.callback(move |e| Msg::Hide(base_url.clone())) >{"hide url"}</a></li>
+                    <li class="clickclose"><a href="#!" onclick=self.link.callback(move |e| Msg::HideDomain(base2_url.clone())) >{"hide domain"}</a></li>
                     <li> <input id="add_tag" type="text" placeholder="Add Tag" value=self.new_tag.clone()
                     oninput=self.link.callback(move |e: InputData| Msg::Tag((base3_url.clone(), e.value)))/> </li>
                 </ul>
@@ -642,8 +642,18 @@ impl SearchResults {
 
                 <script>
                     {
-                        "var elems = document.querySelectorAll('.dropdown-trigger');
-                        var instances = M.Dropdown.init(elems, {closeOnClick: false, constrainWidth: false, container: document.querySelectorAll('.results')});"
+                        "
+                        var elems = document.querySelectorAll('.dropdown-trigger');
+                        var instances = M.Dropdown.init(elems, {closeOnClick: false, constrainWidth: false, container: document.querySelectorAll('.results')});
+
+                        var elems = document.querySelectorAll('.clickclose');
+                        for (var i = 0; i < elems.length; i++) {
+                            var elem = elems[i];
+                            elem.onclick = function () {
+                                M.Dropdown._dropdowns.forEach(function (e) {e.close()})
+                            };
+                        }
+                       " 
                     }
                 </script>
             </>
