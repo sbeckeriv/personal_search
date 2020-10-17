@@ -1,10 +1,7 @@
 use anyhow::Error;
-
 use serde_derive::{Deserialize, Serialize};
-
 use serde_json::Value;
 use url::form_urlencoded::byte_serialize;
-
 use yew::format::{Json, Nothing};
 use yew::prelude::*;
 use yew::services::console::ConsoleService;
@@ -33,6 +30,7 @@ macro_rules! if_html {
 pub struct App {
     link: ComponentLink<Self>,
     search: String,
+    settings_click: i64,
     port: String,
     fetching: bool,
     network_task: Option<yew::services::fetch::FetchTask>,
@@ -151,8 +149,23 @@ impl Settings {
           </div>
         }
     }
+
+    fn loading_html(&self) -> Html {
+        if_html!(self.fetching =>
+        <div class="progress">
+            <div class="indeterminate"></div>
+        </div>
+        )
+    }
     fn loaded(&self) -> Html {
-        if let Some(settings) = self.settings.as_ref() {
+        if self.fetching {
+            html! {
+            <div class="progress">
+                <div class="indeterminate"></div>
+                {"Fetching..."}
+            </div>
+            }
+        } else if let Some(settings) = self.settings.as_ref() {
             ConsoleService::log(&format!("{:?}", settings));
             html! {<>
               <div class="row">
@@ -203,9 +216,13 @@ impl Settings {
     }
 }
 
+#[derive(Properties, Clone, PartialEq, Debug)]
+pub struct SettingsProp {
+    pub clicked_at: i64,
+}
 impl Component for Settings {
     type Message = Msg;
-    type Properties = ();
+    type Properties = SettingsProp;
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let mut s = Settings {
@@ -220,8 +237,9 @@ impl Component for Settings {
         s.fetch_settings(Some(s.port.clone()));
         s
     }
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        false
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        self.update_settings(None);
+        true
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
@@ -738,7 +756,7 @@ impl FacetResults {
 impl App {
     fn setting_modal(&self) -> Html {
         html! {
-            <Settings/>
+            <Settings clicked_at=self.settings_click />
         }
     }
     fn content(&self) -> Html {
@@ -761,7 +779,7 @@ impl App {
                             <input id="search" type="search" autocomplete="off" required=true value={self.search.clone()} oninput=self.link.callback(|e: InputData| Msg::Search(e.value))/>
                             <label class="label-icon" for="search"><i class="material-icons">{"search"}</i></label>
                         </div>
-                         <a class="btn-floating btn-large halfway-fab waves-effect waves-light grey modal-trigger" href="#setting_modal">
+                         <a class="btn-floating btn-large halfway-fab waves-effect waves-light grey modal-trigger" href="#setting_modal" onclick=self.link.callback(|_| Msg::ClickSettings)>
                             <i class="material-icons">{"settings"}</i>
                           </a>
                     </div>
@@ -787,6 +805,7 @@ pub enum Msg {
     UpdatePort(String),
     ToggleIndexer,
 
+    ClickSettings,
     FetchReady((String, Result<Value, Error>)),
     Ignore,
 }
@@ -804,10 +823,10 @@ impl Component for App {
                 param_search = params.replace("?q=", "");
             }
         }
-
         App {
             link,
             search: param_search,
+            settings_click: 0,
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
@@ -818,8 +837,8 @@ impl Component for App {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::UpdatePort(string) => {
-                self.port = string;
+            Msg::ClickSettings => {
+                self.settings_click += 1;
             }
             Msg::Search(search_string) => {
                 self.search = search_string;

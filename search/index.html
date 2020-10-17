@@ -88,11 +88,12 @@
       window.onload = event => {
         setTimeout(function() {
           var elems = document.querySelectorAll(".modal");
+          console.log(elems);
           var instances = M.Modal.init(elems, {});
 
           var elems = document.querySelectorAll(".pushpin");
           //var instances = M.Pushpin.init(elems, { top: 100 });
-        }, 200);
+        }, 1000);
       };
     </script>
     <link
