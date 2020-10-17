@@ -40,7 +40,6 @@ pub trait IndexGetter {
             .set("X-Source", "https://github.com/sbeckeriv/personal_search")
             .timeout(Duration::new(10, 0))
             .call();
-        dbg!(&res);
         if res.status() < 300 {
             if let Some(lower) = res.header("Content-Type") {
                 let lower = lower.to_lowercase();
@@ -149,7 +148,6 @@ pub fn write_settings(config: &SystemSettings) {
 pub fn read_settings() -> SystemSettings {
     let path = Path::new(BASE_INDEX_DIR.as_str());
     let path_name = path.join("server_settings.toml");
-    dbg!(&path_name);
     create_directory(&BASE_INDEX_DIR);
     let mut s = String::new();
     let file = OpenOptions::new()
@@ -168,7 +166,6 @@ pub fn read_settings() -> SystemSettings {
             };
         }
     };
-    dbg!(&s);
     if !s.is_empty() {
         let config: SystemSettings = toml::from_str(&s).expect("bad config parse");
         config
@@ -557,13 +554,10 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
             }
 
             let body = match document.find(select::predicate::Name("body")).next() {
-                Some(node) => {
-                    dbg!(text_ignore(&node, &ignore));
-                    text_ignore(&node, &ignore)
-                        .split_whitespace()
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                }
+                Some(node) => text_ignore(&node, &ignore)
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" "),
                 _ => {
                     // nothing to index
                     return;
