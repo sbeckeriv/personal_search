@@ -158,14 +158,7 @@ impl Settings {
         )
     }
     fn loaded(&self) -> Html {
-        if self.fetching {
-            html! {
-            <div class="progress">
-                <div class="indeterminate"></div>
-                {"Fetching..."}
-            </div>
-            }
-        } else if let Some(settings) = self.settings.as_ref() {
+        if let Some(settings) = self.settings.as_ref() {
             ConsoleService::log(&format!("{:?}", settings));
             html! {<>
               <div class="row">
@@ -238,7 +231,7 @@ impl Component for Settings {
         s
     }
     fn change(&mut self, props: Self::Properties) -> ShouldRender {
-        self.update_settings(None);
+        self.fetch_settings(Some(self.port.clone()));
         true
     }
 
