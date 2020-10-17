@@ -137,6 +137,7 @@ pub fn write_settings(config: &SystemSettings) {
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
+        .truncate(true)
         .create(true)
         .open(&path_name)
         .expect("setting file write");
