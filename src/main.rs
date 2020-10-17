@@ -135,10 +135,10 @@ fn movefiles() {
             new_dir_name.truncate(2);
             dbg!(&new_dir_name);
             dbg!(base.join(new_dir_name.clone()));
-            if let Ok(_) = std::fs::create_dir(base.join(new_dir_name.clone())) {}
+            if std::fs::create_dir(base.join(new_dir_name.clone())).is_ok() {}
             let dir_path = base.join(new_dir_name.clone());
             dbg!(dir_path.join(filename));
-            if let Ok(_) = std::fs::rename(file, dir_path.join(filename)) {}
+            if std::fs::rename(file, dir_path.join(filename)).is_ok() {}
         }
     }
 }

@@ -11,7 +11,6 @@ use std::io::Read;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-use tempfile::TempDir;
 
 use std::fs::OpenOptions;
 use toml::Value;

@@ -1,3 +1,8 @@
+#[cfg(feature = "static")]
+use actix_web_static_files;
+#[cfg(feature = "static")]
+include!(concat!(env!("OUT_DIR"), "/generated.rs"));
+
 use actix_cors::Cors;
 use actix_files::NamedFile;
 use actix_web::{middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result};
@@ -405,6 +410,15 @@ async fn filesystem(req: HttpRequest) -> Result<NamedFile> {
     Ok(NamedFile::open(path)?)
 }
 
+#[cfg(feature = "static")]
+fn static_assets() -> actix_web_static_files::ResourceFiles {
+    actix_web_static_files::ResourceFiles::new("/", generate())
+}
+#[cfg(not(feature = "static"))]
+fn static_assets() -> actix_web::Resource {
+    web::resource("/{filename:.*}").route(web::get().to(filesystem))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let opt = Opt::from_args();
@@ -454,7 +468,7 @@ async fn main() -> std::io::Result<()> {
                     .route(web::get().to(facet_request))
                     .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
-            .service(web::resource("/{filename:.*}").route(web::get().to(filesystem)))
+            .service(static_assets())
     })
     .bind(&format!("127.0.0.1:{}", server_port))?
     .run()

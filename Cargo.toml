@@ -7,9 +7,11 @@ edition = "2018"
 [features]
 ml = ["rust-bert"]
 sync = [ "rusqlite", "tempfile" ]
-server = ["tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
+server = [ "tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
+static = ["actix-web-static-files"]
 
 [dependencies]
+actix-web-static-files = {version="*", optional=true}
 actix-cors =  { version = "*", optional = true }
 actix-files =  { version = "*", optional = true }
 actix-service = { version =  "1", optional = true }
@@ -54,4 +56,12 @@ default =["sync"]
 [[bin]]
 name = "server"
 path = "src/bin/server/main.rs"
-features = ["server"]
+features = ["server", "static"]
+
+[server.package]
+build = "build.rs"
+
+
+[build-dependencies]
+actix-web-static-files = {version="*", optional=true}
+
