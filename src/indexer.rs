@@ -368,7 +368,7 @@ pub fn add_hash(domain: &str, hash: u64) {
     index_writer.wait_merging_threads().expect("merge");
 }
 pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document {
-    let json_string = read_source(url_hash);
+    let json_string = read_source(url_hash).expect("json update doc is not there");
     let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
     for keyword in meta.tags_add.unwrap_or_default() {
         let value = serde_json::Value::String(keyword.clone());
@@ -503,6 +503,33 @@ pub fn text_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> 
         }
     }
 }
+pub fn just_content(document: &document::Document) -> Option<String> {
+    let mut ignore = HashSet::<usize>::new();
+    //remove html tags
+    for name in vec![
+        "script", "noscript", "style", "nav", "footer", "form", "map", "source", "canvas",
+        "object", "param", "picture", "progress", "video",
+    ]
+    .iter()
+    {
+        for node in document.find(select::predicate::Name(name.clone())) {
+            ignore.insert(node.raw().index);
+        }
+    }
+
+    match document.find(select::predicate::Name("body")).next() {
+        Some(node) => Some(
+            text_ignore(&node, &ignore)
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" "),
+        ),
+        _ => {
+            // nothing to index
+            None
+        }
+    }
+}
 
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
     let url_hash = md5_hash(&url);
@@ -545,23 +572,12 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
                 Some(node) => node,
                 _ => &empty,
             };
-            let mut ignore = HashSet::<usize>::new();
 
-            for name in vec!["script", "noscript", "style"].iter() {
-                for node in document.find(select::predicate::Name(name.clone())) {
-                    ignore.insert(node.raw().index);
-                }
-            }
-
-            let body = match document.find(select::predicate::Name("body")).next() {
-                Some(node) => text_ignore(&node, &ignore)
-                    .split_whitespace()
-                    .collect::<Vec<_>>()
-                    .join(" "),
-                _ => {
-                    // nothing to index
-                    return;
-                }
+            let body = if let Some(content) = just_content(&document) {
+                content
+            } else {
+                // nothing to index
+                return;
             };
             if body.split_whitespace().nth(100).is_some() {
                 let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
@@ -750,21 +766,22 @@ pub fn write_source(url_hash: &str, json: String) {
         .expect("write source file");
     //output.write_all(json.as_bytes()).expect("write");
 }
-pub fn read_source(url_hash: &str) -> String {
+pub fn read_source(url_hash: &str) -> Option<String> {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
     let mut dir = url_hash.clone().to_string();
     dir.truncate(2);
     let source_path = source_path.join(dir);
-    let input = File::open(source_path.join(format!("{}.jsonc", url_hash)))
-        .unwrap_or_else(|_| panic!("read source {}", url_hash));
-
-    let mut reader = brotli::Decompressor::new(
-        input, 4096, // buffer size
-    );
-    let mut json = String::new();
-    reader.read_to_string(&mut json).expect("read source file");
-    json
+    if let Ok(input) = File::open(source_path.join(format!("{}.jsonc", url_hash))) {
+        let mut reader = brotli::Decompressor::new(
+            input, 4096, // buffer size
+        );
+        let mut json = String::new();
+        reader.read_to_string(&mut json).expect("read source file");
+        Some(json)
+    } else {
+        None
+    }
 }
 
 pub fn duplicate(domain: &str, content_hash: &u64) -> bool {

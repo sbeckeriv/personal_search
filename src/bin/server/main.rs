@@ -5,9 +5,11 @@ include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
 use actix_cors::Cors;
 use actix_files::NamedFile;
+use actix_web::http::StatusCode;
 use actix_web::{middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use futures::future::lazy;
 use personal_search::indexer;
+use select::document;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -296,17 +298,7 @@ async fn attribute_array_request(
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct AttributeRequest {
-    url: String,
-    field: String,
-    value: i8,
-}
-async fn attribute_request(
-    request: HttpRequest,
-    web::Query(info): web::Query<AttributeRequest>,
-) -> web::Json<Option<SearchJson>> {
-    dbg!(request.headers());
+fn attribute_update(info: &AttributeRequest) -> web::Json<Option<SearchJson>> {
     let index = indexer::search_index().expect("could not open search index");
     let _searcher = indexer::searcher(&index);
 
@@ -354,6 +346,30 @@ async fn attribute_request(
         web::Json(Some(doc_to_json(&retrieved_doc, &schema)))
     } else {
         web::Json(None)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AttributeRequest {
+    url: String,
+    field: String,
+    value: i8,
+}
+async fn attribute_request(
+    request: HttpRequest,
+    web::Query(info): web::Query<AttributeRequest>,
+) -> web::Json<Option<SearchJson>> {
+    dbg!(request.headers());
+    if info.field.as_str() == "hide_domain" {
+        let mut settings = indexer::read_settings();
+        let parsed = url::Url::parse(&info.url).expect("url pase");
+        if let Some(domain) = parsed.domain() {
+            settings.ignore_domains.push(domain.to_string());
+            indexer::write_settings(&settings);
+        }
+        web::Json(None)
+    } else {
+        attribute_update(&info)
     }
 }
 
@@ -419,6 +435,36 @@ fn static_assets() -> actix_web::Resource {
     web::resource("/{filename:.*}").route(web::get().to(filesystem))
 }
 
+async fn view(web::Path(hash): web::Path<String>) -> Result<HttpResponse> {
+    let hash = if hash.contains("://") {
+        indexer::md5_hash(&hash)
+    } else {
+        hash
+    };
+
+    let mut body = format!("<div class='content'>url hash {} is not found</div>", hash);
+    if let Some(json_string) = indexer::read_source(&hash) {
+        dbg!(&json_string);
+        let json: Result<serde_json::Value, _> = serde_json::from_str(&json_string);
+        dbg!(&json);
+        if let Ok(json) = json {
+            if let Some(content) = json.get("content") {
+                match content {
+                    serde_json::Value::Array(content) => {
+                        body = format!("<div class='content'>{}</div>", content[0]);
+                    }
+                    _ => {}
+                }
+            } else {
+            }
+        }
+    } else {
+    }
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("text/html; charset=utf-8")
+        .body(body))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let opt = Opt::from_args();
@@ -445,6 +491,11 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::resource("/search")
                     .route(web::get().to(search_request))
+                    .route(web::head().to(HttpResponse::MethodNotAllowed)),
+            )
+            .service(
+                web::resource("/view/{hash}")
+                    .route(web::get().to(view))
                     .route(web::head().to(HttpResponse::MethodNotAllowed)),
             )
             .service(

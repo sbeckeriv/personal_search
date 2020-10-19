@@ -1,13 +1,13 @@
 use yew::prelude::*;
 
-pub struct About;
+pub struct ViewPages;
 
-impl Component for About {
+impl Component for ViewPages {
     type Message = ();
     type Properties = ();
 
     fn create(_: Self::Properties, _: ComponentLink<Self>) -> Self {
-        About {}
+        ViewPages {}
     }
 
     fn update(&mut self, _: Self::Message) -> ShouldRender {

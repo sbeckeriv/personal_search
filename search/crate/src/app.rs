@@ -2,6 +2,8 @@ use anyhow::Error;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 use url::form_urlencoded::byte_serialize;
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::{History, Location, PopStateEvent};
 use yew::format::{Json, Nothing};
 use yew::prelude::*;
 use yew::services::console::ConsoleService;
@@ -30,6 +32,7 @@ macro_rules! if_html {
 pub struct App {
     link: ComponentLink<Self>,
     search: String,
+    show_hash: String,
     settings_click: i64,
     port: String,
     fetching: bool,
@@ -53,7 +56,7 @@ pub struct Settings {
     fetching: bool,
     network_task: Option<yew::services::fetch::FetchTask>,
 }
-//impl FetchJson for Settings {} figure this out with link
+
 impl Settings {
     fn post_json(
         &mut self,
@@ -425,6 +428,19 @@ impl Component for SearchResults {
                         "search_items" => {
                             self.fetching = false;
                             self.network_task = None;
+                            let window = web_sys::window().unwrap();
+                            if let Ok(history) = window.history() {
+                                if history
+                                    .push_state_with_url(
+                                        &JsValue::from_str(""),
+                                        "",
+                                        Some(&format!("/?q={}", self.search)),
+                                    )
+                                    .is_err()
+                                {
+                                    ConsoleService::log("Set history is not working");
+                                }
+                            }
                             let results = response.1.ok();
                             ConsoleService::log(&format!("{:?}", results));
                             // remove dup
@@ -435,23 +451,8 @@ impl Component for SearchResults {
 
                             let results = response.1.ok();
                             ConsoleService::log(&format!("{:?}", results));
-                            let result: SearchJson =
-                                serde_json::from_value(results.unwrap()).unwrap();
-
-                            if let Some(mut search_array) = self.search_json.as_mut() {
-                                let updated = search_array
-                                    .results
-                                    .iter()
-                                    .map(|m| {
-                                        if m.id == result.id {
-                                            result.clone()
-                                        } else {
-                                            m.clone()
-                                        }
-                                    })
-                                    .collect::<Vec<SearchJson>>();
-                                search_array.results = updated;
-                            }
+                            // just reload the search.
+                            self.update(Msg::Search(self.search.clone()));
                         }
                         _ => {}
                     }
@@ -692,60 +693,6 @@ impl SearchResults {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct FacetArray {
-    results: Vec<FacetJson>,
-}
-#[derive(Serialize, Deserialize, Debug)]
-struct FacetJson {
-    name: Vec<String>,
-    count: Option<Vec<isize>>,
-}
-#[derive(Default)]
-pub struct FacetResults {
-    facet_json: Option<FacetArray>,
-    header: String,
-}
-
-impl FacetResults {
-    fn for_value(results: Option<Value>, header: &str) -> Self {
-        match results {
-            Some(results) => FacetResults {
-                facet_json: serde_json::from_value(results).ok(),
-                header: header.to_string(),
-            },
-            None => FacetResults::default(),
-        }
-    }
-
-    fn facet_item(&self, name: &str) -> Html {
-        html! {
-            <li class="collection-item hoverable"><div><a href="#!" class="secondary-content">{name}</a></div></li>
-        }
-    }
-
-    fn facets(&self, header: &str) -> Html {
-        if let Some(_json) = &self.facet_json {
-            html! {
-            <div class="col s1">
-              <ul class="collection blue-grey with-header">
-                <li class="collection-header"><h6>{header}</h6></li>
-                    //{{json.iter().map(|i| self.facet_item(&i)).collect::<Html>()}}
-              </ul>
-            </div>
-              }
-        } else {
-            html! {
-            <div class="col s1">
-              <ul class="collection blue-grey with-header">
-                <li class="collection-header"><h6>{header}</h6></li>
-              </ul>
-            </div>
-            }
-        }
-    }
-}
-
 impl App {
     fn setting_modal(&self) -> Html {
         html! {
@@ -800,6 +747,7 @@ pub enum Msg {
 
     ClickSettings,
     FetchReady((String, Result<Value, Error>)),
+    ViewString(String),
     Ignore,
 }
 
@@ -810,15 +758,21 @@ impl Component for App {
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         let _empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
         let mut param_search = "".to_string();
+        let mut show_hash = "".to_string();
         if let Some(location) = document().location() {
             if let Ok(params) = location.search() {
-                ConsoleService::log(&format!("{:?}", params));
-                param_search = params.replace("?q=", "");
+                if params.starts_with("?q=") {
+                    ConsoleService::log(&format!("{:?}", params));
+                    param_search = params.replace("?q=", "");
+                } else if params.starts_with("?view=") {
+                    show_hash = params.replace("?view=", "");
+                }
             }
         }
         App {
             link,
             search: param_search,
+            show_hash: show_hash,
             settings_click: 0,
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
@@ -853,14 +807,170 @@ impl Component for App {
     }
 
     fn view(&self) -> Html {
-        html! {
-        <>
-            { self.header() }
-            <main>
-                { self.content() }
-                { self.setting_modal() }
-            </main>
-        </>
+        if self.show_hash.is_empty() {
+            html! {
+            <>
+                { self.header() }
+                <main>
+                    { self.content() }
+                    { self.setting_modal() }
+                </main>
+            </>
+            }
+        } else {
+            html! { <ViewPage hash=self.show_hash.clone() port=self.port.clone()/> }
         }
+    }
+}
+
+pub struct ViewPage {
+    link: ComponentLink<Self>,
+    hash: String,
+    content: String,
+    fetching: bool,
+    port: String,
+    network_task: Option<yew::services::fetch::FetchTask>,
+}
+
+#[derive(Properties, Clone, PartialEq, Debug)]
+pub struct ViewPageProps {
+    pub hash: String,
+    pub port: String,
+}
+
+#[derive(Serialize, Debug, Deserialize, Clone)]
+pub struct ViewJson {
+    content: String,
+}
+
+impl Component for ViewPage {
+    type Message = Msg;
+    type Properties = ViewPageProps;
+
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        let mut view = ViewPage {
+            hash: props.hash,
+            content: "".to_string(),
+            fetching: false,
+            network_task: None,
+            port: props.port,
+            link,
+        };
+
+        view.fetch_settings(Some(view.port.clone()));
+        view
+    }
+
+    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+        match msg {
+            Msg::ViewString(response) => {
+                self.fetching = false;
+                self.network_task = None;
+                ConsoleService::log(&format!("{:?}", response));
+                self.content = response;
+            }
+            _ => {}
+        }
+        true
+    }
+
+    fn change(&mut self, _: Self::Properties) -> ShouldRender {
+        false
+    }
+
+    fn view(&self) -> Html {
+        if self.fetching {
+            html! {
+            <div class="progress">
+                <div class="indeterminate"></div>
+            </div>
+                }
+        } else if !self.content.is_empty() {
+            html! {<p><RawHTML inner_html=self.content.clone()/></p>}
+        } else {
+            html! {}
+        }
+    }
+}
+
+impl ViewPage {
+    fn fetch_json(
+        &mut self,
+        binary: bool,
+        url: String,
+        stored_data: String,
+    ) -> yew::services::fetch::FetchTask {
+        let callback = self
+            .link
+            .callback(move |response: Response<Result<String, Error>>| {
+                let (meta, data) = response.into_parts();
+                if meta.status.is_success() {
+                    Msg::ViewString(data.unwrap_or_else(|_| String::new()))
+                } else {
+                    Msg::ViewString(String::new())
+                }
+            });
+        let request = Request::get(url)
+            .header("Accept", "application/json")
+            .body(Nothing)
+            .unwrap();
+        FetchService::fetch(request, callback).unwrap()
+    }
+    fn fetch_settings(&mut self, port: Option<String>) {
+        self.fetching = true;
+        self.network_task = Some(self.fetch_json(
+            false,
+            format!(
+                "http://localhost:{}/view/{}",
+                port.unwrap_or_else(|| self.port.clone()),
+                self.hash
+            ),
+            "view".to_string(),
+        ));
+    }
+}
+// https://github.com/yewstack/yew/issues/1281
+#[derive(Debug, Clone, Eq, PartialEq, Properties)]
+struct RawHTMLProps {
+    pub inner_html: String,
+}
+
+struct RawHTML {
+    props: RawHTMLProps,
+}
+
+impl Component for RawHTML {
+    type Message = Msg;
+    type Properties = RawHTMLProps;
+
+    fn create(props: Self::Properties, _: ComponentLink<Self>) -> Self {
+        Self { props }
+    }
+
+    fn update(&mut self, _: Self::Message) -> ShouldRender {
+        true
+    }
+
+    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+        if self.props != props {
+            self.props = props;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn view(&self) -> Html {
+        let div = web_sys::window()
+            .unwrap()
+            .document()
+            .unwrap()
+            .create_element("div")
+            .unwrap();
+        div.set_inner_html(&self.props.inner_html[..]);
+
+        let node = web_sys::Node::from(div);
+        let vnode = yew::virtual_dom::VNode::VRef(node);
+        vnode
     }
 }
