@@ -527,6 +527,7 @@ pub fn html_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> 
             match node.raw().data {
                 select::node::Data::Text(ref text) => string.push_str(&node.text()),
                 select::node::Data::Element(ref name, ref attrs) => {
+                    //if node name a/img keep href
                     string.push_str(&format!("<{}>", node.name().unwrap_or("div")));
 
                     for child in node.children() {
