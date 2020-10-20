@@ -123,7 +123,7 @@ parcelRequire = (function (modules, cache, entry, globalName) {
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.__wbindgen_closure_wrapper745 = exports.__wbindgen_closure_wrapper599 = exports.__wbindgen_throw = exports.__wbindgen_debug_string = exports.__wbindgen_string_get = exports.__wbg_set_304f2ec1a3ab3b79 = exports.__wbg_global_e16303fe83e1d57f = exports.__wbg_globalThis_b9277fc37e201fe5 = exports.__wbg_window_ba85d88572adc0dc = exports.__wbg_self_07b2f89e82ceb76d = exports.__wbg_then_3b7ac098cfda2fa5 = exports.__wbg_then_4a7a614abbbe6d81 = exports.__wbg_resolve_2529512c3bb73938 = exports.__wbg_new_3e06d4f36713e4cb = exports.__wbg_is_333329c4a02916de = exports.__wbg_newnoargs_f3b8a801d5d4b079 = exports.__wbg_toString_ae4f72e88ee70451 = exports.__wbg_push_b46eeec52d2b03bb = exports.__wbg_from_2a5d647e62275bfd = exports.__wbg_new_e13110f81ae347cf = exports.__wbg_call_8e95613cc6524977 = exports.__wbg_get_0e3f2950cdf758ae = exports.__wbg_iterator_09191f8878ea9877 = exports.__wbg_value_e60bbfb7d52af62f = exports.__wbg_done_037d0a173aef1834 = exports.__wbg_next_2966fa909601a075 = exports.__wbg_next_edda7e0003e5daf9 = exports.__wbindgen_is_object = exports.__wbindgen_is_function = exports.__wbg_get_27693110cb44e852 = exports.__wbg_newwithstrsequencesequence_08147e83d5fd2c0a = exports.__wbg_search_a4c05bf02f7d5a27 = exports.__wbg_removeChild_f4829fcd2e376e1b = exports.__wbg_insertBefore_ea385f1d7ec76e50 = exports.__wbg_appendChild_77215fd672b162c5 = exports.__wbg_textContent_26582d13b9c5ea07 = exports.__wbg_setnodeValue_ec452cd3716fee72 = exports.__wbg_lastChild_4a41600911ce94c7 = exports.__wbg_pushState_bfff600da5cf31c2 = exports.__wbg_fetch_8121e255050852c0 = exports.__wbg_log_3bafd82835c6de6d = exports.__wbg_setAttribute_727bdb9763037624 = exports.__wbg_removeAttribute_a705c6de4bb158c4 = exports.__wbg_setinnerHTML_4ff235db1a3cb4d8 = exports.__wbg_namespaceURI_a4d52538ca0c6bae = exports.__wbg_removeEventListener_9ffcd175e0916270 = exports.__wbg_addEventListener_f0baf69c9c7425c9 = exports.__wbg_abort_bedcd7330ee18c55 = exports.__wbg_new_a82a2c2e1595c56f = exports.__wbg_signal_0017288388f0d141 = exports.__wbg_setvalue_839acf17e43a847f = exports.__wbg_value_bff6f7ef104e077a = exports.__wbg_settype_4f9e0a597bc38efe = exports.__wbg_setchecked_1a89c058f5ac906a = exports.__wbg_instanceof_HtmlInputElement_aaef9fb14eceaa9b = exports.__wbg_newwithstrandinit_d1de1bfcd175e38a = exports.__wbg_settype_98bff8074314478e = exports.__wbg_instanceof_HtmlButtonElement_645b6f9d0d172e00 = exports.__wbg_text_966d07536ca6ccdc = exports.__wbg_arrayBuffer_dc33ab7b8cdf0d63 = exports.__wbg_headers_c736e1fe38752cff = exports.__wbg_status_eb6dbb31556c329f = exports.__wbg_setvalue_1012134a2989f3ee = exports.__wbg_value_91d41b8dbd0b2f0b = exports.__wbg_instanceof_HtmlTextAreaElement_6c876047bbe08f92 = exports.__wbg_querySelector_69fd5cd784bcc892 = exports.__wbg_createTextNode_b3c9e3cb02f83ab5 = exports.__wbg_createElementNS_ea14cb45a87a0719 = exports.__wbg_createElement_5bdf88a5af9f17c5 = exports.__wbg_location_9835be61b5ee5ab0 = exports.__wbg_fetch_1893f81c58855a39 = exports.__wbg_history_d9280cd6f4ab46c1 = exports.__wbg_document_6cc8d0b87c0a99b9 = exports.__wbg_instanceof_Window_adf3196bdc02b386 = exports.__wbg_error_4bb6c2a97407129a = exports.__wbg_stack_558ba5917b466edd = exports.__wbg_new_59cb74e423758ede = exports.__wbg_WorkerGlobalScope_67f1db380a5f80e1 = exports.__wbindgen_is_undefined = exports.__wbg_Window_2b331ff7d706970d = exports.__wbindgen_object_clone_ref = exports.__wbindgen_cb_drop = exports.__wbindgen_string_new = exports.__wbindgen_object_drop_ref = exports.run = exports.default = void 0;
+exports.__wbindgen_closure_wrapper746 = exports.__wbindgen_closure_wrapper600 = exports.__wbindgen_throw = exports.__wbindgen_debug_string = exports.__wbindgen_string_get = exports.__wbg_set_304f2ec1a3ab3b79 = exports.__wbg_global_e16303fe83e1d57f = exports.__wbg_globalThis_b9277fc37e201fe5 = exports.__wbg_window_ba85d88572adc0dc = exports.__wbg_self_07b2f89e82ceb76d = exports.__wbg_then_3b7ac098cfda2fa5 = exports.__wbg_then_4a7a614abbbe6d81 = exports.__wbg_resolve_2529512c3bb73938 = exports.__wbg_new_3e06d4f36713e4cb = exports.__wbg_is_333329c4a02916de = exports.__wbg_newnoargs_f3b8a801d5d4b079 = exports.__wbg_toString_ae4f72e88ee70451 = exports.__wbg_push_b46eeec52d2b03bb = exports.__wbg_from_2a5d647e62275bfd = exports.__wbg_new_e13110f81ae347cf = exports.__wbg_call_8e95613cc6524977 = exports.__wbg_get_0e3f2950cdf758ae = exports.__wbg_iterator_09191f8878ea9877 = exports.__wbg_value_e60bbfb7d52af62f = exports.__wbg_done_037d0a173aef1834 = exports.__wbg_next_2966fa909601a075 = exports.__wbg_next_edda7e0003e5daf9 = exports.__wbindgen_is_object = exports.__wbindgen_is_function = exports.__wbg_get_27693110cb44e852 = exports.__wbg_newwithstrsequencesequence_08147e83d5fd2c0a = exports.__wbg_search_a4c05bf02f7d5a27 = exports.__wbg_pathname_58cb623b73c07bb4 = exports.__wbg_origin_f7f7254564762bea = exports.__wbg_removeChild_f4829fcd2e376e1b = exports.__wbg_insertBefore_ea385f1d7ec76e50 = exports.__wbg_appendChild_77215fd672b162c5 = exports.__wbg_textContent_26582d13b9c5ea07 = exports.__wbg_setnodeValue_ec452cd3716fee72 = exports.__wbg_lastChild_4a41600911ce94c7 = exports.__wbg_fetch_8121e255050852c0 = exports.__wbg_log_3bafd82835c6de6d = exports.__wbg_setAttribute_727bdb9763037624 = exports.__wbg_removeAttribute_a705c6de4bb158c4 = exports.__wbg_setinnerHTML_4ff235db1a3cb4d8 = exports.__wbg_namespaceURI_a4d52538ca0c6bae = exports.__wbg_removeEventListener_9ffcd175e0916270 = exports.__wbg_addEventListener_f0baf69c9c7425c9 = exports.__wbg_abort_bedcd7330ee18c55 = exports.__wbg_new_a82a2c2e1595c56f = exports.__wbg_signal_0017288388f0d141 = exports.__wbg_setvalue_839acf17e43a847f = exports.__wbg_value_bff6f7ef104e077a = exports.__wbg_settype_4f9e0a597bc38efe = exports.__wbg_setchecked_1a89c058f5ac906a = exports.__wbg_instanceof_HtmlInputElement_aaef9fb14eceaa9b = exports.__wbg_newwithstrandinit_d1de1bfcd175e38a = exports.__wbg_settype_98bff8074314478e = exports.__wbg_instanceof_HtmlButtonElement_645b6f9d0d172e00 = exports.__wbg_text_966d07536ca6ccdc = exports.__wbg_arrayBuffer_dc33ab7b8cdf0d63 = exports.__wbg_headers_c736e1fe38752cff = exports.__wbg_status_eb6dbb31556c329f = exports.__wbg_setvalue_1012134a2989f3ee = exports.__wbg_value_91d41b8dbd0b2f0b = exports.__wbg_instanceof_HtmlTextAreaElement_6c876047bbe08f92 = exports.__wbg_querySelector_69fd5cd784bcc892 = exports.__wbg_createTextNode_b3c9e3cb02f83ab5 = exports.__wbg_createElementNS_ea14cb45a87a0719 = exports.__wbg_createElement_5bdf88a5af9f17c5 = exports.__wbg_location_9835be61b5ee5ab0 = exports.__wbg_fetch_1893f81c58855a39 = exports.__wbg_history_d9280cd6f4ab46c1 = exports.__wbg_document_6cc8d0b87c0a99b9 = exports.__wbg_instanceof_Window_adf3196bdc02b386 = exports.__wbg_error_4bb6c2a97407129a = exports.__wbg_stack_558ba5917b466edd = exports.__wbg_new_59cb74e423758ede = exports.__wbindgen_string_new = exports.__wbg_WorkerGlobalScope_67f1db380a5f80e1 = exports.__wbindgen_is_undefined = exports.__wbg_Window_2b331ff7d706970d = exports.__wbindgen_object_clone_ref = exports.__wbindgen_cb_drop = exports.__wbindgen_object_drop_ref = exports.run = exports.default = void 0;
 
 var _rust_parcel_bg = _interopRequireDefault(require("./pkg/rust_parcel_bg.wasm"));
 
@@ -135,8 +135,6 @@ var run = _rust_parcel_bg.default.run;
 exports.run = run;
 var __wbindgen_object_drop_ref = _rust_parcel_bg.default.__wbindgen_object_drop_ref;
 exports.__wbindgen_object_drop_ref = __wbindgen_object_drop_ref;
-var __wbindgen_string_new = _rust_parcel_bg.default.__wbindgen_string_new;
-exports.__wbindgen_string_new = __wbindgen_string_new;
 var __wbindgen_cb_drop = _rust_parcel_bg.default.__wbindgen_cb_drop;
 exports.__wbindgen_cb_drop = __wbindgen_cb_drop;
 var __wbindgen_object_clone_ref = _rust_parcel_bg.default.__wbindgen_object_clone_ref;
@@ -147,6 +145,8 @@ var __wbindgen_is_undefined = _rust_parcel_bg.default.__wbindgen_is_undefined;
 exports.__wbindgen_is_undefined = __wbindgen_is_undefined;
 var __wbg_WorkerGlobalScope_67f1db380a5f80e1 = _rust_parcel_bg.default.__wbg_WorkerGlobalScope_67f1db380a5f80e1;
 exports.__wbg_WorkerGlobalScope_67f1db380a5f80e1 = __wbg_WorkerGlobalScope_67f1db380a5f80e1;
+var __wbindgen_string_new = _rust_parcel_bg.default.__wbindgen_string_new;
+exports.__wbindgen_string_new = __wbindgen_string_new;
 var __wbg_new_59cb74e423758ede = _rust_parcel_bg.default.__wbg_new_59cb74e423758ede;
 exports.__wbg_new_59cb74e423758ede = __wbg_new_59cb74e423758ede;
 var __wbg_stack_558ba5917b466edd = _rust_parcel_bg.default.__wbg_stack_558ba5917b466edd;
@@ -223,8 +223,6 @@ var __wbg_log_3bafd82835c6de6d = _rust_parcel_bg.default.__wbg_log_3bafd82835c6d
 exports.__wbg_log_3bafd82835c6de6d = __wbg_log_3bafd82835c6de6d;
 var __wbg_fetch_8121e255050852c0 = _rust_parcel_bg.default.__wbg_fetch_8121e255050852c0;
 exports.__wbg_fetch_8121e255050852c0 = __wbg_fetch_8121e255050852c0;
-var __wbg_pushState_bfff600da5cf31c2 = _rust_parcel_bg.default.__wbg_pushState_bfff600da5cf31c2;
-exports.__wbg_pushState_bfff600da5cf31c2 = __wbg_pushState_bfff600da5cf31c2;
 var __wbg_lastChild_4a41600911ce94c7 = _rust_parcel_bg.default.__wbg_lastChild_4a41600911ce94c7;
 exports.__wbg_lastChild_4a41600911ce94c7 = __wbg_lastChild_4a41600911ce94c7;
 var __wbg_setnodeValue_ec452cd3716fee72 = _rust_parcel_bg.default.__wbg_setnodeValue_ec452cd3716fee72;
@@ -237,6 +235,10 @@ var __wbg_insertBefore_ea385f1d7ec76e50 = _rust_parcel_bg.default.__wbg_insertBe
 exports.__wbg_insertBefore_ea385f1d7ec76e50 = __wbg_insertBefore_ea385f1d7ec76e50;
 var __wbg_removeChild_f4829fcd2e376e1b = _rust_parcel_bg.default.__wbg_removeChild_f4829fcd2e376e1b;
 exports.__wbg_removeChild_f4829fcd2e376e1b = __wbg_removeChild_f4829fcd2e376e1b;
+var __wbg_origin_f7f7254564762bea = _rust_parcel_bg.default.__wbg_origin_f7f7254564762bea;
+exports.__wbg_origin_f7f7254564762bea = __wbg_origin_f7f7254564762bea;
+var __wbg_pathname_58cb623b73c07bb4 = _rust_parcel_bg.default.__wbg_pathname_58cb623b73c07bb4;
+exports.__wbg_pathname_58cb623b73c07bb4 = __wbg_pathname_58cb623b73c07bb4;
 var __wbg_search_a4c05bf02f7d5a27 = _rust_parcel_bg.default.__wbg_search_a4c05bf02f7d5a27;
 exports.__wbg_search_a4c05bf02f7d5a27 = __wbg_search_a4c05bf02f7d5a27;
 var __wbg_newwithstrsequencesequence_08147e83d5fd2c0a = _rust_parcel_bg.default.__wbg_newwithstrsequencesequence_08147e83d5fd2c0a;
@@ -297,10 +299,10 @@ var __wbindgen_debug_string = _rust_parcel_bg.default.__wbindgen_debug_string;
 exports.__wbindgen_debug_string = __wbindgen_debug_string;
 var __wbindgen_throw = _rust_parcel_bg.default.__wbindgen_throw;
 exports.__wbindgen_throw = __wbindgen_throw;
-var __wbindgen_closure_wrapper599 = _rust_parcel_bg.default.__wbindgen_closure_wrapper599;
-exports.__wbindgen_closure_wrapper599 = __wbindgen_closure_wrapper599;
-var __wbindgen_closure_wrapper745 = _rust_parcel_bg.default.__wbindgen_closure_wrapper745;
-exports.__wbindgen_closure_wrapper745 = __wbindgen_closure_wrapper745;
+var __wbindgen_closure_wrapper600 = _rust_parcel_bg.default.__wbindgen_closure_wrapper600;
+exports.__wbindgen_closure_wrapper600 = __wbindgen_closure_wrapper600;
+var __wbindgen_closure_wrapper746 = _rust_parcel_bg.default.__wbindgen_closure_wrapper746;
+exports.__wbindgen_closure_wrapper746 = __wbindgen_closure_wrapper746;
 },{"./pkg/rust_parcel_bg.wasm":"SqEn"}],"QvaY":[function(require,module,exports) {
 "use strict";
 
@@ -451,6 +453,15 @@ function takeObject(idx) {
     return ret;
 }
 
+function addHeapObject(obj) {
+    if (heap_next === heap.length) heap.push(heap.length + 1);
+    const idx = heap_next;
+    heap_next = heap[idx];
+
+    heap[idx] = obj;
+    return idx;
+}
+
 const lTextDecoder = typeof TextDecoder === 'undefined' ? (0, module.require)('util').TextDecoder : TextDecoder;
 
 let cachedTextDecoder = new lTextDecoder('utf-8', { ignoreBOM: true, fatal: true });
@@ -467,15 +478,6 @@ function getUint8Memory0() {
 
 function getStringFromWasm0(ptr, len) {
     return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
-}
-
-function addHeapObject(obj) {
-    if (heap_next === heap.length) heap.push(heap.length + 1);
-    const idx = heap_next;
-    heap_next = heap[idx];
-
-    heap[idx] = obj;
-    return idx;
 }
 
 let WASM_VECTOR_LEN = 0;
@@ -677,11 +679,6 @@ __exports.__wbindgen_object_drop_ref = function(arg0) {
     takeObject(arg0);
 };
 
-__exports.__wbindgen_string_new = function(arg0, arg1) {
-    var ret = getStringFromWasm0(arg0, arg1);
-    return addHeapObject(ret);
-};
-
 __exports.__wbindgen_cb_drop = function(arg0) {
     const obj = takeObject(arg0).original;
     if (obj.cnt-- == 1) {
@@ -709,6 +706,11 @@ __exports.__wbindgen_is_undefined = function(arg0) {
 
 __exports.__wbg_WorkerGlobalScope_67f1db380a5f80e1 = function(arg0) {
     var ret = getObject(arg0).WorkerGlobalScope;
+    return addHeapObject(ret);
+};
+
+__exports.__wbindgen_string_new = function(arg0, arg1) {
+    var ret = getStringFromWasm0(arg0, arg1);
     return addHeapObject(ret);
 };
 
@@ -905,10 +907,6 @@ __exports.__wbg_fetch_8121e255050852c0 = function(arg0, arg1, arg2) {
     return addHeapObject(ret);
 };
 
-__exports.__wbg_pushState_bfff600da5cf31c2 = handleError(function(arg0, arg1, arg2, arg3, arg4, arg5) {
-    getObject(arg0).pushState(getObject(arg1), getStringFromWasm0(arg2, arg3), arg4 === 0 ? undefined : getStringFromWasm0(arg4, arg5));
-});
-
 __exports.__wbg_lastChild_4a41600911ce94c7 = function(arg0) {
     var ret = getObject(arg0).lastChild;
     return isLikeNone(ret) ? 0 : addHeapObject(ret);
@@ -939,6 +937,22 @@ __exports.__wbg_insertBefore_ea385f1d7ec76e50 = handleError(function(arg0, arg1,
 __exports.__wbg_removeChild_f4829fcd2e376e1b = handleError(function(arg0, arg1) {
     var ret = getObject(arg0).removeChild(getObject(arg1));
     return addHeapObject(ret);
+});
+
+__exports.__wbg_origin_f7f7254564762bea = handleError(function(arg0, arg1) {
+    var ret = getObject(arg1).origin;
+    var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len0 = WASM_VECTOR_LEN;
+    getInt32Memory0()[arg0 / 4 + 1] = len0;
+    getInt32Memory0()[arg0 / 4 + 0] = ptr0;
+});
+
+__exports.__wbg_pathname_58cb623b73c07bb4 = handleError(function(arg0, arg1) {
+    var ret = getObject(arg1).pathname;
+    var ptr0 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len0 = WASM_VECTOR_LEN;
+    getInt32Memory0()[arg0 / 4 + 1] = len0;
+    getInt32Memory0()[arg0 / 4 + 0] = ptr0;
 });
 
 __exports.__wbg_search_a4c05bf02f7d5a27 = handleError(function(arg0, arg1) {
@@ -1101,12 +1115,12 @@ __exports.__wbindgen_throw = function(arg0, arg1) {
     throw new Error(getStringFromWasm0(arg0, arg1));
 };
 
-__exports.__wbindgen_closure_wrapper599 = function(arg0, arg1, arg2) {
+__exports.__wbindgen_closure_wrapper600 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 250, __wbg_adapter_22);
     return addHeapObject(ret);
 };
 
-__exports.__wbindgen_closure_wrapper745 = function(arg0, arg1, arg2) {
+__exports.__wbindgen_closure_wrapper746 = function(arg0, arg1, arg2) {
     var ret = makeMutClosure(arg0, arg1, 319, __wbg_adapter_25);
     return addHeapObject(ret);
 };

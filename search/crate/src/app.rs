@@ -430,6 +430,7 @@ impl Component for SearchResults {
                             self.network_task = None;
                             let window = web_sys::window().unwrap();
                             if let Ok(history) = window.history() {
+                                /*
                                 if history
                                     .push_state_with_url(
                                         &JsValue::from_str(""),
@@ -439,7 +440,7 @@ impl Component for SearchResults {
                                     .is_err()
                                 {
                                     ConsoleService::log("Set history is not working");
-                                }
+                                }*/
                             }
                             let results = response.1.ok();
                             ConsoleService::log(&format!("{:?}", results));
@@ -557,9 +558,23 @@ impl SearchResults {
     }
 
     fn search_item_html(&self, obj: &SearchJson) -> Html {
+        let link = if let Some(location) = document().location() {
+            if let Ok(href) = location.origin() {
+                format!(
+                    "{}/{}?view={}",
+                    href,
+                    location.pathname().unwrap_or("".to_string()),
+                    obj.id
+                )
+            } else {
+                format!("/index.html?view={}", obj.id)
+            }
+        } else {
+            format!("/index.html?view={}", obj.id)
+        };
         html! {
           <li class="collection-item avatar">
-            <span class="title"><a href=obj.url.clone() target="_blank">{&obj.title}{" "}{&obj.url}</a></span>
+            <span class="title"><a href=link.clone() target="_blank">{&obj.title}{" "}{&obj.url}</a></span>
             <p> {&obj.description} <br/>
             {&obj.summary}
             <br/>

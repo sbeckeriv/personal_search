@@ -188,7 +188,7 @@ fn search(query: String, limit: usize) -> Vec<SearchJson> {
     let query = if query.contains("hidden:") {
         query
     } else {
-        format!("({} AND {})", query, "hidden:0")
+        format!("(({}) AND {})", query, "hidden:0")
     };
     dbg!(&query);
 
@@ -282,9 +282,9 @@ async fn attribute_array_request(
         index_writer.wait_merging_threads().expect("merge");
     } else {
         let url = info.url.clone();
-        tokio::spawn(lazy(move |_| {
+        //tokio::spawn(lazy(move |_| {
             indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
-        }));
+        //}));
     }
 
     let index = indexer::search_index().expect("could not open search index");
@@ -332,10 +332,10 @@ fn attribute_update(info: &AttributeRequest) -> web::Json<Option<SearchJson>> {
         index_writer.wait_merging_threads().expect("merge");
     } else {
         let url = info.url.clone();
-        tokio::spawn(lazy(move |_| {
+        //tokio::spawn(lazy(move |_| {
             println!("new");
             indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
-        }));
+        //}));
     }
 
     let index = indexer::search_index().expect("could not open search index");
@@ -451,7 +451,7 @@ async fn view(web::Path(hash): web::Path<String>) -> Result<HttpResponse> {
             if let Some(content) = json.get("content") {
                 match content {
                     serde_json::Value::Array(content) => {
-                        body = format!("<div class='content'>{}</div>", content[0]);
+                        body = format!("<div><a href='{}' target='_blank'>{}</a><br/><div class='content'>{}</div>", json["url"][0].as_str().unwrap(), json["url"][0].as_str().unwrap(),content[0]);
                     }
                     _ => {}
                 }
