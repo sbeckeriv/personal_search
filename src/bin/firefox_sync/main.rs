@@ -177,7 +177,7 @@ fn main() -> tantivy::Result<()> {
                             pinned: None,
                             tags_add: None,
                             tags_remove: None,
-                            hidden: None,
+                            hidden: Some(0),
                         };
                         Some((place.url, meta, place.id, place.last_visit_date))
                     } else {

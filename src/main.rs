@@ -15,6 +15,9 @@ pub struct Opt {
     facet: Option<String>,
     #[structopt(long = "facet_field")]
     facet_field: Option<String>,
+
+    #[structopt(long = "json_source")]
+    json_source: Option<String>,
     #[structopt(long = "backfillcached")]
     backfillcached: bool,
     #[structopt(long = "movecachefiles")]
@@ -156,6 +159,11 @@ fn main() -> tantivy::Result<()> {
                 indexer::backfill_from_cached();
             } else if let Some(query) = opt.query {
                 search(query, index);
+            } else if let Some(url) = opt.json_source {
+                println!(
+                    "{}",
+                    indexer::read_source(&url).unwrap_or("not found".to_string())
+                )
             } else if let Some(url) = opt.import_url {
                 indexer::index_url(
                     url,

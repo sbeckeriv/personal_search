@@ -238,7 +238,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
     schema_builder.add_text_field("url", TEXT | STORED);
     schema_builder.add_text_field("content", TEXT);
     schema_builder.add_text_field("domain", TEXT | STORED);
-    schema_builder.add_text_field("context", TEXT);
+    schema_builder.add_text_field("content_raw", STORED);
     schema_builder.add_text_field("summary", STORED);
     schema_builder.add_text_field("description", STORED);
     schema_builder.add_i64_field("bookmarked", STORED | INDEXED);
@@ -401,6 +401,10 @@ pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document
         json["last_accessed_at_i"] = json!(Utc::now().timestamp());
     }
 
+    if json.get("cotent_raw").is_none() {
+        json["content_raw"] = json!("");
+    }
+
     if json.get("added_at_i").is_none() {
         json["added_at_i"] = json!(Utc::now().timestamp());
     }
@@ -410,7 +414,13 @@ pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document
     }
 
     if let Some(hidden) = meta.hidden {
+        dbg!(hidden);
         json["hidden"] = json!(vec![hidden]);
+    }
+
+    if json.get("hidden").is_none() {
+        println!("hidden 0");
+        json["hidden"] = json!(vec![0]);
     }
 
     if let Some(accessed_count) = meta.access_count {
@@ -554,6 +564,14 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
 
         GetterResults::Html(body) => {
             println!("processing {}", &url);
+
+            doc.add_text(
+                index
+                    .schema()
+                    .get_field("content_raw")
+                    .expect("content_raw"),
+                &body.as_str(),
+            );
             let document = document::Document::from(body.as_str());
 
             let title = match document.find(select::predicate::Name("title")).next() {
@@ -690,6 +708,11 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
             .get_field("accessed_count")
             .expect("accessed_count"),
         meta.access_count.unwrap_or(1),
+    );
+
+    doc.add_i64(
+        index.schema().get_field("hidden").expect("hidden"),
+        meta.hidden.unwrap_or(0),
     );
     doc.add_i64(
         index.schema().get_field("bookmarked").expect("bookmarked"),
