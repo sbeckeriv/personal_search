@@ -7,9 +7,9 @@ use actix_cors::Cors;
 use actix_files::NamedFile;
 use actix_web::http::StatusCode;
 use actix_web::{middleware, web, App, HttpRequest, HttpResponse, HttpServer, Result};
-use futures::future::lazy;
+
 use personal_search::indexer;
-use select::document;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;

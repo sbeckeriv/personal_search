@@ -546,7 +546,7 @@ pub fn just_content_text(document: &document::Document) -> Option<String> {
     //remove html tags
     for name in vec![
         "script", "noscript", "style", "nav", "footer", "form", "map", "source", "canvas",
-        "object", "param", "picture", "progress", "video",
+        "object", "param", "picture", "progress", "video", "svg",
     ]
     .iter()
     {
@@ -576,7 +576,7 @@ pub fn view_body(body: &str) -> String {
     //remove html tags
     for name in vec![
         "script", "noscript", "style", "nav", "footer", "form", "map", "source", "canvas",
-        "object", "param", "picture", "progress", "video",
+        "object", "param", "picture", "progress", "video", "svg",
     ]
     .iter()
     {
