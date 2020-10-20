@@ -17,7 +17,7 @@ jobs:
       - run: rustup component add rustfmt
       - run: cargo fmt -- --check
   
-  build:
+  build-linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -73,7 +73,6 @@ jobs:
         
   build-mac:
     runs-on: macos-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -123,3 +122,56 @@ jobs:
           overwrite: true
           release_name: ${{ runner.OS }}-server
       
+      
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1.0.1
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: beta
+          target: x86_64-pc-windows-msvc
+          default: true
+          override: true
+      - name: Install system dependencies
+        run: cargo install --force cargo-strip
+      - name: Build
+        run: cargo build --release --features "server static sync" && cargo strip
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@2.2.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/firefox_sync.exe
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
+          overwrite: true
+          release_name: ${{ runner.OS }}-firefox-sync
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@2.2.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/chrome_sync.exe
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
+          overwrite: true
+          release_name: ${{ runner.OS }}-chrome-sync
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@2.2.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/personal_search.exe
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
+          overwrite: true
+          release_name: ${{ runner.OS }}-personal-search                
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@2.2.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/server.exe
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
+          overwrite: true
+          release_name: ${{ runner.OS }}-server
+      
+
