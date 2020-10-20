@@ -513,7 +513,34 @@ pub fn text_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> 
         }
     }
 }
-pub fn just_content(document: &document::Document) -> Option<String> {
+
+// from select.rs::text()
+pub fn html_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> String {
+    let mut string = String::new();
+    string.push_str(&format!("<{}>", node.name().unwrap_or("div")));
+    recur(node, &mut string, ignore_index);
+    string.push_str(&format!("</{}>", node.name().unwrap_or("div")));
+    return string;
+
+    fn recur(node: &select::node::Node, string: &mut String, ignore_index: &HashSet<usize>) {
+        if ignore_index.get(&node.raw().index).is_none() {
+            match node.raw().data {
+                select::node::Data::Text(ref text) => string.push_str(&node.text()),
+                select::node::Data::Element(ref name, ref attrs) => {
+                    string.push_str(&format!("<{}>", node.name().unwrap_or("div")));
+
+                    for child in node.children() {
+                        recur(&child, string, ignore_index)
+                    }
+
+                    string.push_str(&format!("</{}>", node.name().unwrap_or("div")));
+                }
+                _ => {}
+            }
+        }
+    }
+}
+pub fn just_content_text(document: &document::Document) -> Option<String> {
     let mut ignore = HashSet::<usize>::new();
     //remove html tags
     for name in vec![
@@ -538,6 +565,27 @@ pub fn just_content(document: &document::Document) -> Option<String> {
             // nothing to index
             None
         }
+    }
+}
+
+pub fn view_body(body: &str) -> String {
+    let document = document::Document::from(body);
+
+    let mut ignore = HashSet::<usize>::new();
+    //remove html tags
+    for name in vec![
+        "script", "noscript", "style", "nav", "footer", "form", "map", "source", "canvas",
+        "object", "param", "picture", "progress", "video",
+    ]
+    .iter()
+    {
+        for node in document.find(select::predicate::Name(name.clone())) {
+            ignore.insert(node.raw().index);
+        }
+    }
+    match document.find(select::predicate::Name("body")).next() {
+        Some(node) => html_ignore(&node, &ignore),
+        _ => "".to_string(),
     }
 }
 
@@ -591,7 +639,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
                 _ => &empty,
             };
 
-            let body = if let Some(content) = just_content(&document) {
+            let body = if let Some(content) = just_content_text(&document) {
                 content
             } else {
                 // nothing to index

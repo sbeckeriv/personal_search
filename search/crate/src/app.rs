@@ -901,7 +901,11 @@ impl Component for ViewPage {
             </div>
                 }
         } else if !self.content.is_empty() {
-            html! {<p><RawHTML inner_html=self.content.clone()/></p>}
+            html! {
+                <p>
+                    <RawHTML inner_html=self.content.clone()/>
+                </p>
+            }
         } else {
             html! {}
         }

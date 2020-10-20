@@ -283,7 +283,7 @@ async fn attribute_array_request(
     } else {
         let url = info.url.clone();
         //tokio::spawn(lazy(move |_| {
-            indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
+        indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
         //}));
     }
 
@@ -333,8 +333,8 @@ fn attribute_update(info: &AttributeRequest) -> web::Json<Option<SearchJson>> {
     } else {
         let url = info.url.clone();
         //tokio::spawn(lazy(move |_| {
-            println!("new");
-            indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
+        println!("new");
+        indexer::index_url(url, meta, Some(&index), indexer::NoAuthBlockingGetter {});
         //}));
     }
 
@@ -442,16 +442,24 @@ async fn view(web::Path(hash): web::Path<String>) -> Result<HttpResponse> {
         hash
     };
 
-    let mut body = format!("<div class='content'>url hash {} is not found</div>", hash);
+    let mut body = format!("<div id='content'>url hash {} is not found</div>", hash);
     if let Some(json_string) = indexer::read_source(&hash) {
         dbg!(&json_string);
         let json: Result<serde_json::Value, _> = serde_json::from_str(&json_string);
         dbg!(&json);
         if let Ok(json) = json {
-            if let Some(content) = json.get("content") {
+            if let Some(content) = json.get("content_raw") {
                 match content {
                     serde_json::Value::Array(content) => {
-                        body = format!("<div><a href='{}' target='_blank'>{}</a><br/><div class='content'>{}</div>", json["url"][0].as_str().unwrap(), json["url"][0].as_str().unwrap(),content[0]);
+                        let content = indexer::view_body(content[0].as_str().unwrap_or(""));
+                        body = format!("<div><a href='{}' target='_blank'>{}</a><br/><div id='content'>{}</div>", json["url"][0].as_str().unwrap(), json["url"][0].as_str().unwrap(),content);
+                    }
+                    _ => {}
+                }
+            } else if let Some(content) = json.get("content") {
+                match content {
+                    serde_json::Value::Array(content) => {
+                        body = format!("<div><a href='{}' target='_blank'>{}</a><br/><div id='content'>{}</div>", json["url"][0].as_str().unwrap(), json["url"][0].as_str().unwrap(),content[0]);
                     }
                     _ => {}
                 }
