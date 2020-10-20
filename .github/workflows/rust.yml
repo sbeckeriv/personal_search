@@ -43,7 +43,7 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/firefox_sync
-          tag: build-${{ github.ref }}
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-firefox-sync
       - name: Upload binaries to release
@@ -51,7 +51,7 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/chrome_sync
-          tag: build-${{ github.ref }}
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-chrome-sync
       - name: Upload binaries to release
@@ -59,7 +59,7 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/personal_search
-          tag: build-${{ github.ref }}
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-personal-search                
       - name: Upload binaries to release
@@ -67,7 +67,7 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/server
-          tag: build-${{ github.ref }}
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-server
         
@@ -95,7 +95,7 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/firefox_sync
-          tag: build-${{ github.ref }}
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-firefox-sync
       - name: Upload binaries to release
@@ -103,7 +103,7 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/chrome_sync
-          tag: build-${{ github.ref }}
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-chrome-sync
       - name: Upload binaries to release
@@ -111,7 +111,7 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/personal_search
-          tag: build-${{ github.ref }}
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-personal-search                
       - name: Upload binaries to release
@@ -119,7 +119,7 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/server
-          tag: build-${{ github.ref }}
+          tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-server
       
