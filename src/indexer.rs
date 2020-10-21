@@ -414,7 +414,6 @@ pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document
     }
 
     if let Some(hidden) = meta.hidden {
-        dbg!(hidden);
         json["hidden"] = json!(vec![hidden]);
     }
 
@@ -529,7 +528,6 @@ pub fn html_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> 
                 select::node::Data::Element(ref _name, ref attrs) => {
                     let attrs = attrs.iter().map(|&(ref name, ref value)| (name, &**value));
                     let name = node.name().unwrap_or("div");
-                    dbg!(&name);
                     //if node name a/img keep href
                     if name == "a" {
                         string.push_str(&format!("<{} ", name,));
