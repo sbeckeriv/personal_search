@@ -12,9 +12,9 @@ The html is downloaded, stored and processed in to a search index[1]. The server
 
 ### Install
 
-At the moment prebuild binaries are under releases https://github.com/sbeckeriv/personal_search/releases . You need to figure out how to get them to run (cron for sync commands) or start at startup (for the server). 
+At the moment prebuild binaries are under releases [https://github.com/sbeckeriv/personal_search/releases](https://github.com/sbeckeriv/personal_search/releases) . You need to figure out how to get them to run (cron for sync commands) or start at startup (for the server). 
 
-Once the service is running visit http://localhost:7172/  click the settings icon. Add domains you do not want to index and turn on indexing.
+Once the service is running visit [http://localhost:7172/](http://localhost:7172/)  click the settings icon. Add domains you do not want to index and turn on indexing.
 
 Run the indexer of your choice. The first run should backfill your last 1000 pages. After that it will only index new pages.
 
@@ -63,7 +63,7 @@ The server is build with Actix and the front end is build with Yew. Its fast. Lo
 No story yet. 
 
 
-[1] https://github.com/tantivy-search/tantivy
+[1]  [https://github.com/tantivy-search/tantivy](https://github.com/tantivy-search/tantivy)
 
 *With a custom indexer you can index *anything* you like, Auth pages, emails.. videos..
 
