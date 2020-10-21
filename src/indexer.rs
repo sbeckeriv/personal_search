@@ -525,16 +525,45 @@ pub fn html_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> 
     fn recur(node: &select::node::Node, string: &mut String, ignore_index: &HashSet<usize>) {
         if ignore_index.get(&node.raw().index).is_none() {
             match node.raw().data {
-                select::node::Data::Text(ref text) => string.push_str(&node.text()),
-                select::node::Data::Element(ref name, ref attrs) => {
+                select::node::Data::Text(ref text) => string.push_str(text),
+                select::node::Data::Element(ref _name, ref attrs) => {
+                    let attrs = attrs.iter().map(|&(ref name, ref value)| (name, &**value));
+                    let name = node.name().unwrap_or("div");
                     //if node name a/img keep href
-                    string.push_str(&format!("<{}>", node.name().unwrap_or("div")));
+                    if name == "a" {
+                        string.push_str(&format!("<{} ", name,));
+                        if let Some(href) = attrs
+                            .clone()
+                            .find(|attr| attr.0.local.to_string() == "href")
+                        {
+                            string.push_str(&format!(
+                                "{}='{}' target='_blank'",
+                                href.0.local.to_string(),
+                                href.1
+                            ));
+                        }
+                        string.push_str(">");
+                    } else if name == "img" {
+                        string.push_str(&format!("<{} ", name,));
+                        if let Some(href) =
+                            attrs.clone().find(|attr| attr.0.local.to_string() == "src")
+                        {
+                            string.push_str(&format!(
+                                "{}='{}' style='max-width:100%'",
+                                href.0.local.to_string(),
+                                href.1
+                            ));
+                        }
+                        string.push_str(">");
+                    } else {
+                        string.push_str(&format!("<{}>", name));
+                    }
 
                     for child in node.children() {
                         recur(&child, string, ignore_index)
                     }
 
-                    string.push_str(&format!("</{}>", node.name().unwrap_or("div")));
+                    string.push_str(&format!("</{}>", name));
                 }
                 _ => {}
             }

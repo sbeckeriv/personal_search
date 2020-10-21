@@ -902,9 +902,9 @@ impl Component for ViewPage {
                 }
         } else if !self.content.is_empty() {
             html! {
-                <p>
+                <div class="container">
                     <RawHTML inner_html=self.content.clone()/>
-                </p>
+                </div>
             }
         } else {
             html! {}

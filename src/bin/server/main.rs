@@ -190,7 +190,6 @@ fn search(query: String, limit: usize) -> Vec<SearchJson> {
     } else {
         format!("(({}) AND {})", query, "hidden:0")
     };
-    dbg!(&query);
 
     if let Ok(query) = query_parser.parse_query(&query) {
         let top_docs = searcher
@@ -312,7 +311,6 @@ fn attribute_update(info: &AttributeRequest) -> web::Json<Option<SearchJson>> {
         }
         _ => {}
     }
-    dbg!(&info);
     if let Some(_doc_address) = indexer::find_url(&info.url, &index) {
         let id = indexer::md5_hash(&info.url);
         let old_doc = tantivy::Term::from_field_text(
@@ -359,7 +357,6 @@ async fn attribute_request(
     request: HttpRequest,
     web::Query(info): web::Query<AttributeRequest>,
 ) -> web::Json<Option<SearchJson>> {
-    dbg!(request.headers());
     if info.field.as_str() == "hide_domain" {
         let mut settings = indexer::read_settings();
         let parsed = url::Url::parse(&info.url).expect("url pase");
@@ -421,7 +418,6 @@ async fn filesystem(req: HttpRequest) -> Result<NamedFile> {
     let name = req.match_info().query("filename");
     let name = name.replace("/", ""); // try not to leave the dir
     let name = format!("{}/{}", "search/dist", name);
-    dbg!(&name);
     let path: PathBuf = name.parse().unwrap();
     Ok(NamedFile::open(path)?)
 }
@@ -444,15 +440,13 @@ async fn view(web::Path(hash): web::Path<String>) -> Result<HttpResponse> {
 
     let mut body = format!("<div id='content'>url hash {} is not found</div>", hash);
     if let Some(json_string) = indexer::read_source(&hash) {
-        dbg!(&json_string);
         let json: Result<serde_json::Value, _> = serde_json::from_str(&json_string);
-        dbg!(&json);
         if let Ok(json) = json {
             if let Some(content) = json.get("content_raw") {
                 match content {
                     serde_json::Value::Array(content) => {
                         let content = indexer::view_body(content[0].as_str().unwrap_or(""));
-                        body = format!("<div><a href='{}' target='_blank'>{}</a><br/><div id='content'>{}</div>", json["url"][0].as_str().unwrap(), json["url"][0].as_str().unwrap(),content);
+                        body = format!("<div><a href='{}' target='_blank'>{}</a><br/><br/><div id='content'>{}</div></div>", json["url"][0].as_str().unwrap(), json["url"][0].as_str().unwrap(),content);
                     }
                     _ => {}
                 }
