@@ -401,7 +401,7 @@ pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document
         json["last_accessed_at_i"] = json!(Utc::now().timestamp());
     }
 
-    if json.get("cotent_raw").is_none() {
+    if json.get("content_raw").is_none() {
         json["content_raw"] = json!("");
     }
 
@@ -529,6 +529,7 @@ pub fn html_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> 
                 select::node::Data::Element(ref _name, ref attrs) => {
                     let attrs = attrs.iter().map(|&(ref name, ref value)| (name, &**value));
                     let name = node.name().unwrap_or("div");
+                    dbg!(&name);
                     //if node name a/img keep href
                     if name == "a" {
                         string.push_str(&format!("<{} ", name,));
