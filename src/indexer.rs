@@ -860,6 +860,7 @@ pub fn write_source(url_hash: &str, json: String) {
     let mut dir = url_hash.clone().to_string();
     dir.truncate(2);
     let source_path = source_path.join(dir);
+    if std::fs::create_dir(source_path.clone()).is_ok() {}
     let output = File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
     let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
     writer
