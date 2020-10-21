@@ -20,7 +20,7 @@ Run the indexer of your choice. The first run should backfill your last 1000 pag
 
 The index and configuration files are stored at HOME/.config/private_search
 
-# Pin current page
+##### Pin current page
 
 Add a bookmarklet to pin the current page you are looking at. If the url has not been index yet it will import it and pin it. This will depend on the sites cors configuration.
 
