@@ -41,6 +41,12 @@ javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&v
 Open search is supported. In firefox I added it as a search engine with a keyword. I can type "ps postgres" and it will go to http://localhost:7172/index.html?q=postgres
 
 # Development
+Rust features: server, static, sync, ml
+
+ML - compiles with rust-bert for summarization of the html. It works well, but its super slow with a cpu. GPU cuda is a pain to setup but its much faster but still slow..
+Server - related server code
+Static - will compile the yew html/js/images/css directly in the server binary for distribution. Normal the server reads files from the search/dist directory.
+Sync - sqlite  and related code for reading a browsers history file.
 
 use `PS_INDEX_DIRECTORY=test/private_search` to test
 
@@ -69,5 +75,6 @@ under the search folder `yarn build` and refresh the page. It uses parcel. rust 
 
 tantivy for search
 Yew for the front end
+Actix for the server
 Actix for the server
 Actix for the server
