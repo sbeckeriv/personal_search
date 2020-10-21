@@ -1,37 +1,56 @@
-## Welcome to GitHub Pages
+## Private search
+Often when looking for a site I visited before I need to remember a bit of the title or the url. The contents of the page are not searchable from omnibars but the contents are what I remember the most. Think google for just pages you have already seen. Also its all local to your computer. 
 
-You can use the [editor on GitHub](https://github.com/sbeckeriv/personal_search/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+### Process 
 
-### Markdown
+As you visit sites in your browser it records the history of the url, the time and other metadata. Using these files the indexer reads thems and re-requests the site again. The reason to request the site again is to keep private authed data out of the index. Honestly gmail does a fine job of search I dont need another search for my email*.
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+The html is downloaded, stored and processed in to a search index[1]. The server loads up the index and finds your results. Since we have the original file there is also an offline** view of the file when it was indexed.
 
-```markdown
-Syntax highlighted code block
 
-# Header 1
-## Header 2
-### Header 3
+### Install
 
-- Bulleted
-- List
+At the moment prebuild binaries are under releases https://github.com/sbeckeriv/personal_search/releases . You need to figure out how to get them to run (cron for sync commands) or start at startup (for the server). 
 
-1. Numbered
-2. List
+Once the service is running visit http://localhost:7172/  click the settings icon. Add domains you do not want to index and turn on indexing.
 
-**Bold** and _Italic_ and `Code` text
+Run the indexer of your choice. The first run should backfill your last 1000 pages. After that it will only index new pages.
 
-[Link](url) and ![Image](src)
-```
+The index and configuration files are stored at HOME/.config/private_search
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
 
-### Jekyll Themes
+### Features
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/sbeckeriv/personal_search/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+* Linux, Mac and Windows builds
+* Chrome indexer
+* Firefox indexer
+* Offline Viewin,
+* Full-text search, Natural query language (e.g. (michael AND jackson) OR "king of pop"), Phrase queries search Phrase queries search (e.g. "michael jackson") [1]
+* hierarchical tags "/tag/base" "/tag/base/1" "/tag/base/2"
+* keywords - /tag are user created facets /keywords come directly from the html keywords
+* Pinning/Staring
+* Hide url
+* Index ingore list
+* bookmarklet to pin a page your are viewing ***
+* opensearch - Allows for custom search engine from the omnibar. I can type "ps postgres" and go to the postgres results.
 
-### Support or Contact
 
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+### Details
+
+The server is build with Actix and the front end is build with Yew. Its fast. Loading the search index (25k urls), searching, and parsing the results to json takes 14ms. Since it is all local there is no network lag issues. I dont know how to mesure Yew but the results feel instant as you type [add video]. 
+
+25000 urls is taking up about 1.9 gigs. This can be reduced by about 1/2 but the original source is stored for editing. This might change in the future. 
+
+### Upgrading
+
+No story yet. 
+
+
+[1] https://github.com/tantivy-search/tantivy
+
+*With a custom indexer you can index *anything* you like, Auth pages, emails.. videos..
+
+** images are not stored and will load if connected to the internet. 
+
+*** depends on cors of the site but works well enough. Could also be used to only index pinned sites if you dont use the indexers.
