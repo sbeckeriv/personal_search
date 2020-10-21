@@ -1,1 +1,4 @@
 theme: jekyll-theme-minimal
+title: Private Search
+description: A private search over urls you have visited before
+show_downloads: true
