@@ -89,7 +89,7 @@ fn main() -> tantivy::Result<()> {
             let tmp_dir = tempfile::TempDir::new().expect("tmp_dir");
             let tempfile = tmp_dir.path().join("tmpfile");
             let tempfile = tempfile.to_str().unwrap();
-            fs::copy(place_file, tempfile);
+            fs::copy(place_file, tempfile).unwrap();
             let conn = Connection::open(tempfile).expect("opening sqlite file");
 
             let mut stmt = conn.prepare("select visits.id as id, urls.url as url, urls.title as title, urls.visit_count as visit_count, urls.hidden as hidden , visits.visit_time as last_visit_date from visits   join urls on visits.url = urls.id ORDER BY visits.visit_time DESC;").expect("place prep");

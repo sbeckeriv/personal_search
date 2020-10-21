@@ -109,7 +109,7 @@ fn main() -> tantivy::Result<()> {
             let tmp_dir = tempfile::TempDir::new().expect("tmp_dir");
             let tempfile = tmp_dir.path().join("tmpfile");
             let tempfile = tempfile.to_str().unwrap();
-            fs::copy(place_file, tempfile);
+            fs::copy(place_file, tempfile).unwrap();
             let conn = Connection::open(tempfile).expect("opening sqlite file");
             let mut stmt = conn
                 .prepare("SELECT id, fk, title FROM moz_bookmarks")
