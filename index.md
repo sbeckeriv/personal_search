@@ -1,6 +1,7 @@
 ## Private search
 Often when looking for a site I visited before I need to remember a bit of the title or the url. The contents of the page are not searchable from omnibars but the contents are what I remember the most. Think google for just pages you have already seen. Also its all local to your computer. 
 
+![Image of the search](https://raw.githubusercontent.com/sbeckeriv/personal_search/master/images/search.png)
 
 ### Process 
 
@@ -19,6 +20,13 @@ Run the indexer of your choice. The first run should backfill your last 1000 pag
 
 The index and configuration files are stored at HOME/.config/private_search
 
+# Pin current page
+
+Add a bookmarklet to pin the current page you are looking at. If the url has not been index yet it will import it and pin it. This will depend on the sites cors configuration.
+
+```
+javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&value=1&url="+document.location).then(data=> data.json()).then(result=> alert("pinned: "+document.location));}());
+```
 
 ### Features
 
@@ -34,6 +42,14 @@ The index and configuration files are stored at HOME/.config/private_search
 * Index ingore list
 * bookmarklet to pin a page your are viewing ***
 * opensearch - Allows for custom search engine from the omnibar. I can type "ps postgres" and go to the postgres results.
+
+Settings:
+![Image of the settings](https://raw.githubusercontent.com/sbeckeriv/personal_search/master/images/settings.png)
+Tag search
+![Image of the settings](https://raw.githubusercontent.com/sbeckeriv/personal_search/master/images/tags.png)
+Offline view with link to live site
+![Image of the settings](https://raw.githubusercontent.com/sbeckeriv/personal_search/master/images/offline.png)
+
 
 
 ### Details
