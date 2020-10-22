@@ -15,9 +15,11 @@ pub struct Opt {
     facet: Option<String>,
     #[structopt(long = "facet_field")]
     facet_field: Option<String>,
-
     #[structopt(long = "json_source")]
     json_source: Option<String>,
+
+    #[structopt(long = "debug")]
+    debug: bool,
     #[structopt(long = "backfillcached")]
     backfillcached: bool,
     #[structopt(long = "movecachefiles")]
@@ -48,7 +50,8 @@ fn facets(index: tantivy::Index, field: &str, facet: &str) {
     let facets: Vec<(&Facet, u64)> = facet_counts.get(facet).collect();
     dbg!(facets);
 }
-fn search(query: String, index: tantivy::Index) {
+
+fn search(query: String, index: tantivy::Index, debug: bool) {
     let searcher = indexer::searcher(&index);
     let default_fields: Vec<tantivy::schema::Field> = index
         .schema()
@@ -109,8 +112,11 @@ fn search(query: String, index: tantivy::Index) {
             summary = summary,
             pinned = pinned
         );
-        let json = index.schema().to_json(&retrieved_doc);
-        println!("{}:\n{}", score, json);
+        if debug {
+            let json = index.schema().to_json(&retrieved_doc);
+            println!("{}:\n{}", score, json);
+            dbg!(query.explain(&searcher, doc_address).unwrap());
+        }
     }
 }
 
@@ -158,7 +164,7 @@ fn main() -> tantivy::Result<()> {
             } else if opt.backfillcached {
                 indexer::backfill_from_cached();
             } else if let Some(query) = opt.query {
-                search(query, index);
+                search(query, index, opt.debug);
             } else if let Some(url) = opt.json_source {
                 println!(
                     "{}",
