@@ -6,6 +6,7 @@ edition = "2018"
 
 [features]
 ml = ["rust-bert"]
+brave = []
 sync = [ "rusqlite", "tempfile" ]
 server = [ "tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 static = ["actix-web-static-files"]
