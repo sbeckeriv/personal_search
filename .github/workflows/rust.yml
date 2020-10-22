@@ -37,7 +37,7 @@ jobs:
           && sudo apt-get install -y \
           libdbus-1-dev && cargo install --force cargo-strip
       - name: Build
-        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync target/release/brave_sync && cargo build --release --features "server static sync" &&   cargo strip
+        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync target/release/brave_sync && cargo build --release --features "server static sync toolkit" &&   cargo strip
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@2.2.0
         with:
@@ -96,7 +96,7 @@ jobs:
       - name: Install system dependencies
         run: cargo install --force cargo-strip
       - name: Build
-        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync target/release/brave_sync && cargo build --release --features "server static sync" &&   cargo strip
+        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync target/release/brave_sync && cargo build --release --features "server static sync toolkit" &&   cargo strip
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@2.2.0
         with:
@@ -156,7 +156,7 @@ jobs:
       - name: Install system dependencies
         run: cargo install --force cargo-strip
       - name: Build
-        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync.exe target/release/brave_sync.exe && cargo build --release --features "server static sync" &&   cargo strip
+        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync.exe target/release/brave_sync.exe && cargo build --release --features "server static sync toolkit" &&   cargo strip
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@2.2.0
         with:

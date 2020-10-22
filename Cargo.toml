@@ -10,20 +10,23 @@ brave = []
 sync = [ "rusqlite", "tempfile" ]
 server = [ "tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 static = ["actix-web-static-files"]
+toolkit = ["termimad", "html2md"]
 
 [dependencies]
-actix-web-static-files = {version="*", optional=true}
 actix-cors =  { version = "0.4.1", optional = true }
 actix-files =  { version = "0.4.0", optional = true }
 actix-service = { version =  "1", optional = true }
 actix-web =  { version = "3", optional = true }
+actix-web-static-files = {version="*", optional=true}
 env_logger = { version =  "0.7", optional = true }
 futures =  { version = "0.3.1", optional = true }
+html2md = {version="*", optional=true}
 json =  { version = "0.12", optional = true }
 rusqlite = { version = "*", optional = true, features= ["bundled","chrono","unlock_notify"] }
 rust-bert = { version = "*", optional = true }
-tokio = { version="*", optional = true, features=["rt"] }
 tempfile = { version="*", optional = true}
+termimad = {version="*", optional=true}
+tokio = { version="*", optional = true, features=["rt"] }
 
 brotli = "*"
 chrono = "*"

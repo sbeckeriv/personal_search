@@ -1,8 +1,10 @@
+use html2md;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
+use termimad;
 mod indexer;
 
 #[derive(StructOpt, Debug)]
@@ -15,9 +17,12 @@ pub struct Opt {
     facet: Option<String>,
     #[structopt(long = "facet_field")]
     facet_field: Option<String>,
-
     #[structopt(long = "json_source")]
     json_source: Option<String>,
+    #[structopt(long = "show")]
+    show: Option<String>,
+    #[structopt(long = "debug")]
+    debug: bool,
     #[structopt(long = "backfillcached")]
     backfillcached: bool,
     #[structopt(long = "movecachefiles")]
@@ -48,7 +53,7 @@ fn facets(index: tantivy::Index, field: &str, facet: &str) {
     let facets: Vec<(&Facet, u64)> = facet_counts.get(facet).collect();
     dbg!(facets);
 }
-fn search(query: String, index: tantivy::Index) {
+fn search(query: String, index: tantivy::Index, debug: bool) {
     let searcher = indexer::searcher(&index);
     let default_fields: Vec<tantivy::schema::Field> = index
         .schema()
@@ -158,7 +163,44 @@ fn main() -> tantivy::Result<()> {
             } else if opt.backfillcached {
                 indexer::backfill_from_cached();
             } else if let Some(query) = opt.query {
-                search(query, index);
+                search(query, index, opt.debug);
+            } else if let Some(url) = opt.show {
+                let url = if url.contains(".") {
+                    indexer::md5_hash(&url)
+                } else {
+                    url
+                };
+
+                if let Some(json_string) = indexer::read_source(&url) {
+                    let json: Result<serde_json::Value, _> = serde_json::from_str(&json_string);
+                    if let Ok(json) = json {
+                        if let Some(content) = json.get("content_raw") {
+                            match content {
+                                serde_json::Value::Array(content) => {
+                                    let content =
+                                        indexer::view_body(content[0].as_str().unwrap_or(""));
+                                    let markdown = html2md::parse_html(&content);
+                                    termimad::print_inline(&markdown);
+                                }
+                                _ => {}
+                            }
+                        } else if let Some(content) = json.get("content") {
+                            match content {
+                                serde_json::Value::Array(content) => {
+                                    let content = content[0].as_str().unwrap_or("");
+                                    if !content.contains("<html>") {
+                                        println!("{}", content);
+                                    } else {
+                                        let markdown = html2md::parse_html(&content);
+                                        termimad::print_inline(&markdown);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        } else {
+                        }
+                    }
+                }
             } else if let Some(url) = opt.json_source {
                 println!(
                     "{}",
