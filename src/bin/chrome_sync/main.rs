@@ -22,6 +22,7 @@ pub struct Opt {
     db: Option<PathBuf>,
 }
 
+#[cfg(not(feature = "brave"))]
 fn find_places_file() -> Option<PathBuf> {
     //~/.config/google-chrome/Default/History
     //~/.config/google-chrome-beta/Default/History
@@ -44,6 +45,34 @@ fn find_places_file() -> Option<PathBuf> {
     };
     Some(Path::new(&path).into())
 }
+
+#[cfg(feature = "brave")]
+fn find_places_file() -> Option<PathBuf> {
+    //~/.config/google-chrome/Default/History
+    //~/.config/google-chrome-beta/Default/History
+    //~/.config/google-chrome-unstable/Default/History
+    //~/.config/chromium/Default/History
+    let home = dirs::home_dir().expect("no home dir");
+
+    let path = if cfg!(target_os = "linux") {
+        format!(
+            "{}/.config/BraveSoftware/Brave-Browser/Default/History",
+            home.display()
+        )
+    } else if cfg!(target_os = "macos") {
+        format!(
+            "{}/Library/Application Support/BraveSoftware/Brave-Browser/Default/History",
+            home.display()
+        )
+    } else {
+        format!(
+            "{}\\AppData\\Local\\BraveSoftware\\Brave-Browser\\User Data\\Default\\History",
+            home.display()
+        )
+    };
+    Some(Path::new(&path).into())
+}
+
 #[derive(Debug)]
 struct Places {
     id: i64,
