@@ -69,7 +69,6 @@ jobs:
           file: target/release/server
           tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
-          release_name: ${{ runner.OS }}-server
           release_name: ${{ runner.OS }}-private-search
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@2.2.0
@@ -198,5 +197,3 @@ jobs:
           tag: ${{ runner.OS }}-build-${{ github.ref }}
           overwrite: true
           release_name: ${{ runner.OS }}-private-search
-
-

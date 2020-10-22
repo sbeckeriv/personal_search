@@ -558,20 +558,7 @@ impl SearchResults {
     }
 
     fn search_item_html(&self, obj: &SearchJson) -> Html {
-        let link = if let Some(location) = document().location() {
-            if let Ok(href) = location.origin() {
-                format!(
-                    "{}/{}?view={}",
-                    href,
-                    location.pathname().unwrap_or("".to_string()),
-                    obj.id
-                )
-            } else {
-                format!("/index.html?view={}", obj.id)
-            }
-        } else {
-            format!("/index.html?view={}", obj.id)
-        };
+        let link = format!("/index.html?view={}", obj.id);
         html! {
           <li class="collection-item avatar">
             <span class="title"><a href=link.clone() target="_blank">{&obj.title}{" "}{&obj.url}</a></span>
