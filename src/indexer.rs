@@ -370,6 +370,7 @@ pub fn add_hash(domain: &str, hash: u64) {
 pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document {
     let json_string = read_source(url_hash).expect("json update doc is not there");
     let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
+    dbg!(&json);
     for keyword in meta.tags_add.unwrap_or_default() {
         let value = serde_json::Value::String(keyword.clone());
         if let Some(words) = json.get_mut("tags") {
@@ -394,19 +395,32 @@ pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document
         }
     }
     if let Some(last_visit) = meta.last_visit {
-        json["last_accessed_at_i"] = json!(last_visit.to_rfc3339());
-        json["last_accessed_at_i"] = json!(last_visit.timestamp());
+        json["last_accessed_at_i"] = json!(vec![last_visit.to_rfc3339()]);
+        json["last_accessed_at_i"] = json!(vec![last_visit.timestamp()]);
     }
     if json.get("last_accessed_at_i").is_none() {
-        json["last_accessed_at_i"] = json!(Utc::now().timestamp());
+        json["last_accessed_at_i"] = json!(vec![Utc::now().timestamp()]);
+    }
+    // should not be the case but I dont want to download my 25k urls.
+    if json.get("content_raw").is_none() {
+        json["content_raw"] = json!(vec![""]);
     }
 
-    if json.get("content_raw").is_none() {
-        json["content_raw"] = json!("");
+    // reading from the index vs source we need to reparse the html or text
+    if json.get("content").is_none() {
+        let body = json["content_raw"][0].as_str().unwrap_or("");
+        dbg!(&body);
+        let content = if body.contains("<body>") {
+            let document = document::Document::from(body);
+            just_content_text(&document).expect("jst_content_text to work")
+        } else {
+            body.to_string()
+        };
+        json["content"] = json!(vec![content]);
     }
 
     if json.get("added_at_i").is_none() {
-        json["added_at_i"] = json!(Utc::now().timestamp());
+        json["added_at_i"] = json!(vec![Utc::now().timestamp()]);
     }
 
     if let Some(pinned) = meta.pinned {
@@ -446,7 +460,8 @@ pub fn update_cached(
     let json = index.schema().to_json(&doc);
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
-    write_source(url_hash, json);
+    // No longer storing cache
+    //write_source(url_hash, json);
 }
 
 #[cfg(not(feature = "ml"))]
@@ -626,6 +641,13 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
     match getter.get_url(&url) {
         GetterResults::Text(body) => {
             doc.add_text(index.schema().get_field("content").expect("content"), &body);
+            doc.add_text(
+                index
+                    .schema()
+                    .get_field("content_raw")
+                    .expect("content_raw"),
+                &body,
+            );
             let mut short_body = body;
             let mut new_len = 150;
             // prevent panics by finding a safe spot to slice
@@ -802,8 +824,8 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
     index_writer.wait_merging_threads().expect("merge");
-
-    write_source(&url_hash, json);
+    // no longer storing cache
+    //write_source(&url_hash, json);
 }
 pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl IndexGetter) {
     if CACHEDCONFIG.indexer_enabled {
@@ -852,7 +874,8 @@ pub fn source_exists(filename: &str) -> bool {
     let source_path = source_path.join(dir);
     source_path.join(format!("{}.jsonc", filename)).exists()
 }
-
+// used only for dumping the index to json files.
+// You will dump the files with one index and reimport them with a different index.
 pub fn write_source(url_hash: &str, json: String) {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
@@ -873,6 +896,7 @@ pub fn read_source(url_hash: &str) -> Option<String> {
     let mut dir = url_hash.clone().to_string();
     dir.truncate(2);
     let source_path = source_path.join(dir);
+    let index = search_index().expect("could not open search index");
     if let Ok(input) = File::open(source_path.join(format!("{}.jsonc", url_hash))) {
         let mut reader = brotli::Decompressor::new(
             input, 4096, // buffer size
@@ -880,6 +904,11 @@ pub fn read_source(url_hash: &str) -> Option<String> {
         let mut json = String::new();
         reader.read_to_string(&mut json).expect("read source file");
         Some(json)
+    } else if let Some(doc_address) = find_url(url_hash, &index) {
+        println!("reading from index");
+        let searcher = searcher(&index);
+        let retrieved_doc = searcher.doc(doc_address).expect("doc");
+        Some(index.schema().to_json(&retrieved_doc))
     } else {
         None
     }
@@ -926,11 +955,16 @@ pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
     }
     false
 }
+
 // move over to id hash
 pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAddress> {
     let searcher = searcher(&index);
 
-    let url_hash = md5_hash(url);
+    let url_hash = if url.contains(":") {
+        md5_hash(url)
+    } else {
+        url.to_string()
+    };
     let query_parser = QueryParser::for_index(
         &index,
         vec![index.schema().get_field("id").expect("idfield")],
