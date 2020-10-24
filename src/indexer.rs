@@ -42,6 +42,7 @@ pub trait IndexGetter {
             .call();
         if res.status() < 300 {
             if let Some(lower) = res.header("Content-Type") {
+                dbg!(&lower);
                 let lower = lower.to_lowercase();
                 if lower == "" || lower.contains("html") {
                     GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
@@ -457,7 +458,6 @@ pub fn update_cached(
     index_writer: &mut tantivy::IndexWriter,
 ) {
     let doc = update_document(url_hash, index, meta);
-    let json = index.schema().to_json(&doc);
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
     // No longer storing cache
@@ -632,11 +632,53 @@ pub fn view_body(body: &str) -> String {
         _ => "".to_string(),
     }
 }
+pub enum DocIndexState {
+    New(tantivy::Document),
+    Update(tantivy::Document),
+    Skip,
+    Have,
+}
+pub fn get_doc(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) -> DocIndexState {
+    // strip out of the fragment to reduce dup urls
+    let parsed = url::Url::parse(&url).expect("url pase");
+    let url = if let Some(fragment) = parsed.fragment() {
+        url.replace(&format!("#{}", fragment), "")
+    } else {
+        url.to_string()
+    };
+    let url_hash = md5_hash(&url);
+    println!("indexing {} {}", &url_hash, &url);
+    if url_skip(&url) {
+        println!("skip {}", url);
+        DocIndexState::Skip
+    } else if let Some(_doc_address) = find_url(&url, &index) {
+        println!("have {}", url);
+        DocIndexState::Have
+    } else if source_exists(&url_hash) {
+        println!("cached file {}", url);
 
-pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
+        let doc = update_document(&url_hash, &index, meta);
+        DocIndexState::Update(doc)
+    } else if parsed.domain().is_none() {
+        DocIndexState::Skip
+    } else {
+        if let Some(doc) = url_doc(&url, &index, meta, getter) {
+            dbg!("new");
+            DocIndexState::New(doc)
+        } else {
+            DocIndexState::Skip
+        }
+    }
+}
+
+pub fn url_doc(
+    url: &str,
+    index: &Index,
+    meta: UrlMeta,
+    getter: impl IndexGetter,
+) -> Option<tantivy::Document> {
     let url_hash = md5_hash(&url);
     let parsed = url::Url::parse(&url).expect("url pase");
-
     let mut doc = tantivy::Document::default();
     match getter.get_url(&url) {
         GetterResults::Text(body) => {
@@ -694,7 +736,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
                 content
             } else {
                 // nothing to index
-                return;
+                return None;
             };
             if body.split_whitespace().nth(100).is_some() {
                 let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
@@ -818,15 +860,17 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
         0,
     );
     doc.add_text(index.schema().get_field("id").expect("id"), &url_hash);
-    let json = index.schema().to_json(&doc);
-
-    let mut index_writer = index.writer(50_000_000).expect("writer");
-    index_writer.add_document(doc);
-    index_writer.commit().expect("commit");
-    index_writer.wait_merging_threads().expect("merge");
-    // no longer storing cache
-    //write_source(&url_hash, json);
+    Some(doc)
 }
+pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
+    if let Some(doc) = url_doc(url, index, meta, getter) {
+        let mut index_writer = index.writer(50_000_000).expect("writer");
+        index_writer.add_document(doc);
+        index_writer.commit().expect("commit");
+        index_writer.wait_merging_threads().expect("merge");
+    }
+}
+
 pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl IndexGetter) {
     if CACHEDCONFIG.indexer_enabled {
         let i;
@@ -861,11 +905,11 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl
             if parsed.domain().is_none() {
                 return;
             }
-            dbg!(&url);
             remote_index(&url, &index, meta, getter)
         };
     }
 }
+
 pub fn source_exists(filename: &str) -> bool {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
