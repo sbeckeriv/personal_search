@@ -32,8 +32,9 @@ javascript: (function () {fetch("http://localhost:7172/attributes?field=pinned&v
 
 * Linux, Mac and Windows builds
 * Chrome indexer
+* Brave indexer
 * Firefox indexer
-* Offline Viewin,
+* Offline Viewin'
 * Full-text search, Natural query language (e.g. (michael AND jackson) OR "king of pop"), Phrase queries search Phrase queries search (e.g. "michael jackson") [1]
 * hierarchical tags "/tag/base" "/tag/base/1" "/tag/base/2"
 * keywords - /tag are user created facets /keywords come directly from the html keywords
@@ -54,7 +55,7 @@ Offline view with link to live site
 
 ### Details
 
-The server is build with Actix and the front end is build with Yew. Its fast. Loading the search index (25k urls), searching, and parsing the results to json takes 14ms. Since it is all local there is no network lag issues. I dont know how to mesure Yew but the results feel instant as you type [add video]. 
+The server is build with Actix [2] and the front end is build with Yew. Its fast. Loading the search index (25k urls), searching, and parsing the results to json takes 14ms. Since it is all local there is no network lag issues. I dont know how to mesure Yew but the results feel instant as you type [add video]. 
 
 25000 urls is taking up about 475mb. Since the main data is stored in the index there is no need for a backup.  
 
@@ -66,6 +67,10 @@ No story yet.
 
 
 [1]  [https://github.com/tantivy-search/tantivy](https://github.com/tantivy-search/tantivy)
+
+[2] [https://github.com/actix/actix-web](https://github.com/actix/actix-web)
+
+[3] [https://yew.rs/docs/en/](https://yew.rs/docs/en/)
 
 *With a custom indexer you can index *anything* you like, Auth pages, emails.. videos..
 
