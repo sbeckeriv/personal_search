@@ -4,7 +4,7 @@ extern crate web_sys;
 extern crate yew;
 extern crate yew_router;
 use wasm_bindgen::prelude::*;
-use yew_router::{route::Route, switch::Permissive, Switch};
+
 
 // When the `console_error_panic_hook` feature is enabled, we can call the
 // `set_panic_hook` function to get better error messages if we ever panic.

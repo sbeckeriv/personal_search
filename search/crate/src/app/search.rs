@@ -2,34 +2,21 @@ use anyhow::Error;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 use url::form_urlencoded::byte_serialize;
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{History, Location, PopStateEvent};
 use yew::format::{Json, Nothing};
 use yew::prelude::*;
 use yew::services::console::ConsoleService;
-use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
-use yew::utils::document;
+use yew::services::fetch::{FetchService, FetchTask, Request, Response};
 
 pub enum Msg {
-    Search(String),
-    Pin(String),
-    Unpin(String),
-    Hide(String),
-    Tag((String, String)),
-    Untag((String, String)),
-    HideDomain(String),
-
-    //settings
-    RemoveIgnoreDomains(String),
-    UpdateIgnoreDomains(String),
-    IgnoreStrings(String),
-    UpdatePort(String),
-    ToggleIndexer,
-
-    ClickSettings,
     FetchReady((String, Result<Value, Error>)),
-    ViewString(String),
+    Hide(String),
+    HideDomain(String),
     Ignore,
+    Pin(String),
+    Search(String),
+    Tag((String, String)),
+    Unpin(String),
+    Untag((String, String)),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -69,8 +56,8 @@ pub struct SearchResults {
     queued_search: Option<String>,
     fetching: bool,
     props: SearchProps,
-    network_task: Option<yew::services::fetch::FetchTask>,
-    pin_task: Option<yew::services::fetch::FetchTask>,
+    network_task: Option<FetchTask>,
+    pin_task: Option<FetchTask>,
 }
 #[derive(Properties, Clone, PartialEq, Debug)]
 pub struct SearchProps {
@@ -87,7 +74,6 @@ impl Component for SearchResults {
             link,
             search_json: None,
             search: props.search_input.clone(),
-            // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
             queued_search: None,
@@ -119,9 +105,6 @@ impl Component for SearchResults {
             Msg::Unpin(string) => self.remote_set_attribute(&string, &"pinned", 0),
             Msg::Hide(string) => self.remote_set_attribute(&string, &"hide", 1),
             Msg::HideDomain(string) => self.remote_set_attribute(&string, &"hide_domain", 1),
-            Msg::UpdatePort(string) => {
-                self.port = string;
-            }
             Msg::Untag(change) => {
                 let (url, tag) = change;
                 self.remote_set_tag(&url, &tag, "remove");
@@ -154,17 +137,17 @@ impl Component for SearchResults {
                 }
             }
             Msg::FetchReady(response) => {
-                if let Some(next) = &self.queued_search {
+                if let Some(next) = self.queued_search.clone() {
                     self.fetching = false;
                     self.network_task = None;
-                    self.fetch_search(&next.clone())
+                    self.fetch_search(&next)
                 } else {
                     match response.0.as_str() {
                         "search_items" => {
                             self.fetching = false;
                             self.network_task = None;
                             let window = web_sys::window().unwrap();
-                            if let Ok(history) = window.history() {
+                            if let Ok(_history) = window.history() {
                                 /*
                                 if history
                                     .push_state_with_url(
@@ -212,11 +195,8 @@ impl Component for SearchResults {
 
 impl SearchResults {
     fn for_value(&mut self, results: Option<Value>) {
-        match results {
-            Some(results) => {
-                self.search_json = serde_json::from_value(results).ok();
-            }
-            None => {}
+        if let Some(results) = results {
+            self.search_json = serde_json::from_value(results).ok();
         }
     }
 
@@ -257,12 +237,7 @@ impl SearchResults {
             "set_attributes".to_string(),
         ));
     }
-    fn fetch_json(
-        &mut self,
-        binary: bool,
-        url: String,
-        stored_data: String,
-    ) -> yew::services::fetch::FetchTask {
+    fn fetch_json(&mut self, binary: bool, url: String, stored_data: String) -> FetchTask {
         let callback = self
             .link
             .callback(move |response: Response<Json<Result<Value, Error>>>| {
@@ -311,14 +286,12 @@ impl SearchResults {
     }
 
     fn menu(&self, url: &str, id: &str) -> Html {
-        let base_url = url.clone();
-        let base_url = base_url.to_string();
-
-        let base2_url = url.clone();
-        let base2_url = base2_url.to_string();
-
-        let base3_url = url.clone();
-        let base3_url = base3_url.to_string();
+        let base_url = url.to_string();
+        let base_url = base_url;
+        let base2_url = base_url.clone();
+        let base2_url = base2_url;
+        let base3_url = base2_url.clone();
+        let base3_url = base3_url;
         html! {
             <>
                 <a class="dropdown-trigger secondary-content" href="#" data-target=format!("dropdown-{}",id)><i class="material-icons">{"arrow_drop_down"}</i> </a>
@@ -369,7 +342,7 @@ impl SearchResults {
 
     fn chip(&self, url: &str, string: &str) -> Html {
         let string = string.trim().to_string();
-        let domain = url.to_string().clone();
+        let domain = url.to_string();
         if_html!(
             !string.is_empty() =>
                 <div class="chip">

@@ -1,13 +1,5 @@
-use anyhow::Error;
-use serde_derive::{Deserialize, Serialize};
-use serde_json::Value;
-use url::form_urlencoded::byte_serialize;
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{History, Location, PopStateEvent};
-use yew::format::{Json, Nothing};
 use yew::prelude::*;
 use yew::services::console::ConsoleService;
-use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
 use yew::utils::document;
 pub mod rawhtml;
 pub mod search;
@@ -23,8 +15,6 @@ pub struct App {
     show_hash: String,
     settings_click: i64,
     port: String,
-    fetching: bool,
-    network_task: Option<yew::services::fetch::FetchTask>,
 }
 
 impl App {
@@ -65,24 +55,7 @@ impl App {
 
 pub enum Msg {
     Search(String),
-    Pin(String),
-    Unpin(String),
-    Hide(String),
-    Tag((String, String)),
-    Untag((String, String)),
-    HideDomain(String),
-
-    //settings
-    RemoveIgnoreDomains(String),
-    UpdateIgnoreDomains(String),
-    IgnoreStrings(String),
-    UpdatePort(String),
-    ToggleIndexer,
-
     ClickSettings,
-    FetchReady((String, Result<Value, Error>)),
-    ViewString(String),
-    Ignore,
 }
 
 impl Component for App {
@@ -90,7 +63,6 @@ impl Component for App {
     type Properties = ();
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let _empty: Vec<serde_json::Result<Request<Vec<u8>>>> = vec![];
         let mut param_search = "".to_string();
         let mut show_hash = "".to_string();
         if let Some(location) = document().location() {
@@ -106,13 +78,11 @@ impl Component for App {
         App {
             link,
             search: param_search,
-            show_hash: show_hash,
+            show_hash,
             settings_click: 0,
             // write /read from local stoage
             // https://dev.to/davidedelpapa/yew-tutorial-04-and-services-for-all-1non
             port: "7172".to_string(),
-            fetching: false,
-            network_task: None,
         }
     }
 
@@ -124,14 +94,6 @@ impl Component for App {
             Msg::Search(search_string) => {
                 self.search = search_string;
             }
-            Msg::FetchReady(_response) => {
-                self.fetching = false;
-                self.network_task = None;
-            }
-            Msg::Ignore => {
-                return false;
-            }
-            _ => {}
         }
         true
     }

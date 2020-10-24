@@ -1,35 +1,13 @@
 use super::rawhtml::RawHTML;
 use anyhow::Error;
 use serde_derive::{Deserialize, Serialize};
-use serde_json::Value;
-use url::form_urlencoded::byte_serialize;
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{History, Location, PopStateEvent};
-use yew::format::{Json, Nothing};
+use yew::format::Nothing;
 use yew::prelude::*;
 use yew::services::console::ConsoleService;
-use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
-use yew::utils::document;
+use yew::services::fetch::{FetchService, FetchTask, Request, Response};
+
 pub enum Msg {
-    Search(String),
-    Pin(String),
-    Unpin(String),
-    Hide(String),
-    Tag((String, String)),
-    Untag((String, String)),
-    HideDomain(String),
-
-    //settings
-    RemoveIgnoreDomains(String),
-    UpdateIgnoreDomains(String),
-    IgnoreStrings(String),
-    UpdatePort(String),
-    ToggleIndexer,
-
-    ClickSettings,
-    FetchReady((String, Result<Value, Error>)),
     ViewString(String),
-    Ignore,
 }
 pub struct ViewPage {
     link: ComponentLink<Self>,
@@ -37,7 +15,7 @@ pub struct ViewPage {
     content: String,
     fetching: bool,
     pub port: String,
-    network_task: Option<yew::services::fetch::FetchTask>,
+    network_task: Option<FetchTask>,
 }
 
 #[derive(Properties, Clone, PartialEq, Debug)]
@@ -77,7 +55,6 @@ impl Component for ViewPage {
                 ConsoleService::log(&format!("{:?}", response));
                 self.content = response;
             }
-            _ => {}
         }
         true
     }
@@ -106,12 +83,7 @@ impl Component for ViewPage {
 }
 
 impl ViewPage {
-    fn fetch_json(
-        &mut self,
-        binary: bool,
-        url: String,
-        stored_data: String,
-    ) -> yew::services::fetch::FetchTask {
+    fn fetch_json(&mut self, _binary: bool, url: String, _stored_data: String) -> FetchTask {
         let callback = self
             .link
             .callback(move |response: Response<Result<String, Error>>| {

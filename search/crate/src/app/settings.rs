@@ -1,35 +1,18 @@
 use anyhow::Error;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
-use url::form_urlencoded::byte_serialize;
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{History, Location, PopStateEvent};
 use yew::format::{Json, Nothing};
 use yew::prelude::*;
 use yew::services::console::ConsoleService;
-use yew::services::fetch::{FetchService, FetchTask, Request, Response, Uri};
-use yew::utils::document;
+use yew::services::fetch::{FetchService, FetchTask, Request, Response};
 
 pub enum Msg {
-    Search(String),
-    Pin(String),
-    Unpin(String),
-    Hide(String),
-    Tag((String, String)),
-    Untag((String, String)),
-    HideDomain(String),
-
-    //settings
-    RemoveIgnoreDomains(String),
-    UpdateIgnoreDomains(String),
-    IgnoreStrings(String),
-    UpdatePort(String),
-    ToggleIndexer,
-
-    ClickSettings,
     FetchReady((String, Result<Value, Error>)),
-    ViewString(String),
     Ignore,
+    RemoveIgnoreDomains(String),
+    ToggleIndexer,
+    UpdateIgnoreDomains(String),
+    UpdatePort(String),
 }
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct SystemSettings {
@@ -43,10 +26,9 @@ pub struct Settings {
     link: ComponentLink<Self>,
     settings: Option<SystemSettings>,
     port: String,
-    new_ignore_string: String,
     new_ignore_domains: String,
     fetching: bool,
-    network_task: Option<yew::services::fetch::FetchTask>,
+    network_task: Option<FetchTask>,
 }
 
 impl Settings {
@@ -56,7 +38,7 @@ impl Settings {
         url: String,
         body: &SystemSettings,
         stored_data: String,
-    ) -> yew::services::fetch::FetchTask {
+    ) -> FetchTask {
         let callback = self
             .link
             .callback(move |response: Response<Json<Result<Value, Error>>>| {
@@ -94,12 +76,7 @@ impl Settings {
             "settings".to_string(),
         ));
     }
-    fn fetch_json(
-        &mut self,
-        binary: bool,
-        url: String,
-        stored_data: String,
-    ) -> yew::services::fetch::FetchTask {
+    fn fetch_json(&mut self, binary: bool, url: String, stored_data: String) -> FetchTask {
         let callback = self
             .link
             .callback(move |response: Response<Json<Result<Value, Error>>>| {
@@ -133,8 +110,8 @@ impl Settings {
     }
 
     fn chip_it(&self, chip: &str) -> Html {
-        let domain = chip.clone();
-        let domain = domain.to_string();
+        let domain = chip.to_string();
+        let domain = domain;
         let id = format!("chip-{}", domain);
         ConsoleService::log(&format!("{:?}", domain));
         html! {
@@ -145,13 +122,6 @@ impl Settings {
         }
     }
 
-    fn loading_html(&self) -> Html {
-        if_html!(self.fetching =>
-        <div class="progress">
-            <div class="indeterminate"></div>
-        </div>
-        )
-    }
     fn loaded(&self) -> Html {
         if let Some(settings) = self.settings.as_ref() {
             ConsoleService::log(&format!("{:?}", settings));
@@ -217,7 +187,6 @@ impl Component for Settings {
             link,
             settings: None,
             new_ignore_domains: String::new(),
-            new_ignore_string: String::new(),
             port: "7172".to_string(),
             fetching: false,
             network_task: None,
@@ -225,7 +194,7 @@ impl Component for Settings {
         s.fetch_settings(Some(s.port.clone()));
         s
     }
-    fn change(&mut self, props: Self::Properties) -> ShouldRender {
+    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
         self.fetch_settings(Some(self.port.clone()));
         true
     }
@@ -263,8 +232,8 @@ impl Component for Settings {
                 self.port = string;
                 self.fetch_settings(Some(self.port.clone()));
             }
-            Msg::FetchReady(response) => match response.0.as_str() {
-                "settings" => {
+            Msg::FetchReady(response) => {
+                if let "settings" = response.0.as_str() {
                     self.fetching = false;
                     self.network_task = None;
                     if let Ok(results) = response.1 {
@@ -273,8 +242,7 @@ impl Component for Settings {
                         self.settings = results;
                     }
                 }
-                _ => {}
-            },
+            }
             _ => {}
         }
         true
