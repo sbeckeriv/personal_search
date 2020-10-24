@@ -10,6 +10,9 @@ use yew_router::{route::Route, switch::Permissive, Switch};
 // `set_panic_hook` function to get better error messages if we ever panic.
 extern crate console_error_panic_hook;
 use console_error_panic_hook::set_once as set_panic_hook;
+
+#[macro_use]
+mod util;
 mod app;
 
 // Called by our JS entry point to run the example
