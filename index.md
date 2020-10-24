@@ -55,7 +55,7 @@ Offline view with link to live site
 
 ### Details
 
-The server is build with Actix [2] and the front end is build with Yew. Its fast. Loading the search index (25k urls), searching, and parsing the results to json takes 14ms. Since it is all local there is no network lag issues. I dont know how to mesure Yew but the results feel instant as you type [add video]. 
+The server is build with Actix [2] and the front end is build with Yew [3]. Its fast. Loading the search index (25k urls), searching, and parsing the results to json takes 14ms. Since it is all local there is no network lag issues. I dont know how to mesure Yew but the results feel instant as you type [add video]. 
 
 25000 urls is taking up about 475mb. Since the main data is stored in the index there is no need for a backup.  
 
