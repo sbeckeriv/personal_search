@@ -633,12 +633,12 @@ pub fn view_body(body: &str) -> String {
     }
 }
 pub enum DocIndexState {
-    New(tantivy::Document),
-    Update(tantivy::Document),
+    New(GetterResults),
+    Update(),
     Skip,
     Have,
 }
-pub fn get_doc(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) -> DocIndexState {
+pub fn get_url(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) -> DocIndexState {
     // strip out of the fragment to reduce dup urls
     let parsed = url::Url::parse(&url).expect("url pase");
     let url = if let Some(fragment) = parsed.fragment() {
@@ -656,18 +656,11 @@ pub fn get_doc(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter
         DocIndexState::Have
     } else if source_exists(&url_hash) {
         println!("cached file {}", url);
-
-        let doc = update_document(&url_hash, &index, meta);
-        DocIndexState::Update(doc)
+        DocIndexState::Update()
     } else if parsed.domain().is_none() {
         DocIndexState::Skip
     } else {
-        if let Some(doc) = url_doc(&url, &index, meta, getter) {
-            dbg!("new");
-            DocIndexState::New(doc)
-        } else {
-            DocIndexState::Skip
-        }
+        DocIndexState::New(getter.get_url(&url))
     }
 }
 

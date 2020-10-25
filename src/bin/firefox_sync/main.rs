@@ -184,6 +184,7 @@ fn main() -> tantivy::Result<()> {
                         None
                     }
                 })
+                .filter_map(|x| x)
                 .collect::<Vec<_>>();
 
             let mut length = places.len();
@@ -207,28 +208,24 @@ fn main() -> tantivy::Result<()> {
                 */
 
             let indexer = indexer::search_index().unwrap();
-            let docs = places_it
-                .par_iter()
-                .rev()
-                .map(|record| {
-                    if let Some((url, meta, _id, raw_date)) = record {
-                        dbg!(&url);
-                        if let Some(date) = raw_date {
-                            let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
-                            let path = path.join("firefox_sync_cache.toml");
-                            let path_name = path.to_str().expect("cache");
-                        }
-                        indexer::get_doc(
-                            &url.to_string(),
-                            &indexer,
-                            meta.clone(),
-                            indexer::NoAuthBlockingGetter {},
-                        )
-                    } else {
-                        indexer::DocIndexState::Skip
-                    }
-                })
-                .collect::<Vec<_>>();
+            for chunk in places_it.into_iter().par_bridge().map(|record| {
+                let (url, meta, _id, raw_date) = record;
+                dbg!(&url);
+                if let Some(date) = raw_date {
+                    let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
+                    let path = path.join("firefox_sync_cache.toml");
+                    let path_name = path.to_str().expect("cache");
+                }
+                indexer::get_url(
+                    &url.to_string(),
+                    &indexer,
+                    meta.clone(),
+                    indexer::NoAuthBlockingGetter {},
+                )
+            }) {
+                dbg!(chunk);
+            }
+
             //dbg!(docs);
 
             /*
