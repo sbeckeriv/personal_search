@@ -23,6 +23,7 @@ use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
 
+#[derive(Debug, Clone)]
 pub enum GetterResults {
     Html(String),
     Text(String),
@@ -632,6 +633,8 @@ pub fn view_body(body: &str) -> String {
         _ => "".to_string(),
     }
 }
+
+#[derive(Debug, Clone)]
 pub enum DocIndexState {
     New(GetterResults),
     Update(),

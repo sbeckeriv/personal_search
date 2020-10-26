@@ -198,36 +198,47 @@ fn main() -> tantivy::Result<()> {
                 .par_chunks(10)
                 .map(|chunks| {
                     dbg!(&chunks);
-                    chunks.iter().map(|record| {
-                        (
-                            record.url.clone(),
-                            indexer::get_url(&record.url, &index, indexer::NoAuthBlockingGetter {}),
-                        )
-                    })
+                    chunks
+                        .iter()
+                        .map(|record| {
+                            dbg!(&record.url);
+                            (
+                                record.url.clone(),
+                                indexer::get_url(
+                                    &record.url,
+                                    &index,
+                                    indexer::NoAuthBlockingGetter {},
+                                ),
+                            )
+                        })
+                        .collect::<Vec<_>>()
                 })
                 .map(|chunks| {
-                    chunks.map(|data| {
-                        dbg!(&data.0);
-                        let place = records_data.get(&data.0).unwrap().last().unwrap();
-                        let web_data = data.1;
-                        let meta = indexer::UrlMeta {
-                            url: Some(place.url.clone()),
-                            title: place.title.clone(),
-                            bookmarked: Some(bookmarks.contains(&place.id)),
-                            last_visit: place
-                                .last_visit_date
-                                .map(|num| Utc.timestamp(num / 1000000, 0)),
-                            access_count: Some(place.visit_count),
-                            pinned: None,
-                            tags_add: None,
-                            tags_remove: None,
-                            hidden: Some(0),
-                        };
+                    chunks
+                        .iter()
+                        .map(|data| {
+                            dbg!(&data.0);
+                            let place = records_data.get(&data.0).unwrap().last().unwrap();
+                            let web_data = data.1.clone();
+                            let meta = indexer::UrlMeta {
+                                url: Some(place.url.clone()),
+                                title: place.title.clone(),
+                                bookmarked: Some(bookmarks.contains(&place.id)),
+                                last_visit: place
+                                    .last_visit_date
+                                    .map(|num| Utc.timestamp(num / 1000000, 0)),
+                                access_count: Some(place.visit_count),
+                                pinned: None,
+                                tags_add: None,
+                                tags_remove: None,
+                                hidden: Some(0),
+                            };
 
-                        dbg!(&data.0);
-                        meta
-                        // index
-                    })
+                            dbg!(&data.0);
+                            meta
+                            // index
+                        })
+                        .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
         }
