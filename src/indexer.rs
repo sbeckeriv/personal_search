@@ -638,7 +638,7 @@ pub enum DocIndexState {
     Skip,
     Have,
 }
-pub fn get_url(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) -> DocIndexState {
+pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> DocIndexState {
     // strip out of the fragment to reduce dup urls
     let parsed = url::Url::parse(&url).expect("url pase");
     let url = if let Some(fragment) = parsed.fragment() {

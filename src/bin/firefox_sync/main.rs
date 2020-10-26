@@ -2,16 +2,17 @@ extern crate probabilistic_collections;
 use chrono::{TimeZone, Utc};
 use glob::glob;
 use personal_search::indexer;
-use rayon::prelude::*;
 use rusqlite::{params, Connection, Result};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+
+use rayon::prelude::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::channel;
 use structopt::StructOpt;
 use toml::Value;
 
@@ -54,7 +55,7 @@ fn find_places_file() -> Option<PathBuf> {
     });
     entries.pop()
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MozPlaces {
     id: i64,
     url: String,
@@ -103,7 +104,7 @@ fn main() -> tantivy::Result<()> {
     } else {
         None
     };
-    let mut places;
+
     match place {
         Some(place_file) => {
             let tmp_dir = tempfile::TempDir::new().expect("tmp_dir");
@@ -131,7 +132,7 @@ fn main() -> tantivy::Result<()> {
             );
 
             let mut stmt = conn.prepare("SELECT id, url, title, description, visit_count, hidden, last_visit_date FROM moz_places order by last_visit_date desc").expect("place prep");
-            let places_iter = stmt
+            let places_sql = stmt
                 .query_map(params![], |row| {
                     // dont use wrapper object. we could call it right here.
                     Ok(MozPlaces {
@@ -145,30 +146,73 @@ fn main() -> tantivy::Result<()> {
                     })
                 })
                 .expect("place sql");
-            places = places_iter
-                .map(|record| {
-                    let place = record.unwrap();
-                    if place.visit_count > 0 && place.hidden == 0 {
-                        //move off of index and on time last_visit_date for updates
-                        if let Some(id_check) = last_id {
-                            if let Some(last_visit) = place.last_visit_date {
-                                if opt.backfill {
-                                    // backfill we start with the newest so we want the oldest.
-                                    if id_check < last_visit {
-                                        return None;
-                                    }
+
+            let index = indexer::search_index().unwrap();
+            let records = places_sql.filter(|record| {
+                let place = record.as_ref().unwrap();
+                if place.visit_count > 0 && place.hidden == 0 {
+                    //move off of index and on time last_visit_date for updates
+                    if let Some(id_check) = last_id {
+                        if let Some(last_visit) = place.last_visit_date {
+                            if opt.backfill {
+                                // backfill we start with the newest so we want the oldest.
+                                if id_check < last_visit {
+                                    false
                                 } else {
-                                    // move forward in time.
-                                    if id_check > last_visit {
-                                        return None;
-                                    }
+                                    true
+                                }
+                            } else {
+                                // move forward in time.
+                                if id_check > last_visit {
+                                    false
+                                } else {
+                                    true
                                 }
                             }
+                        } else {
+                            true
                         }
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                }
+            });
 
+            let limit = if last_id.is_none() { 1000 } else { 100000000 };
+            let record_list = records
+                .filter_map(Result::ok)
+                .take(limit)
+                .collect::<Vec<_>>();
+
+            let mut records_data = HashMap::new();
+            for record in &record_list {
+                records_data
+                    .entry(record.url.clone())
+                    .or_insert_with(Vec::new)
+                    .push(record.clone());
+            }
+
+            let results = &record_list
+                .par_chunks(10)
+                .map(|chunks| {
+                    dbg!(&chunks);
+                    chunks.iter().map(|record| {
+                        (
+                            record.url.clone(),
+                            indexer::get_url(&record.url, &index, indexer::NoAuthBlockingGetter {}),
+                        )
+                    })
+                })
+                .map(|chunks| {
+                    chunks.map(|data| {
+                        dbg!(&data.0);
+                        let place = records_data.get(&data.0).unwrap().last().unwrap();
+                        let web_data = data.1;
                         let meta = indexer::UrlMeta {
                             url: Some(place.url.clone()),
-                            title: place.title,
+                            title: place.title.clone(),
                             bookmarked: Some(bookmarks.contains(&place.id)),
                             last_visit: place
                                 .last_visit_date
@@ -179,80 +223,13 @@ fn main() -> tantivy::Result<()> {
                             tags_remove: None,
                             hidden: Some(0),
                         };
-                        Some((place.url, meta, place.id, place.last_visit_date))
-                    } else {
-                        None
-                    }
+
+                        dbg!(&data.0);
+                        meta
+                        // index
+                    })
                 })
-                .filter_map(|x| x)
                 .collect::<Vec<_>>();
-
-            let mut length = places.len();
-            // first run only the last 1000 urls
-            let places_it = if last_id.is_none() {
-                length = 1000;
-                places
-            } else {
-                places
-            };
-            /*
-            let mut file = OpenOptions::new()
-                .truncate(true)
-                .write(true)
-                .create(true)
-                .open(&path_name.clone())
-                .expect("cache file");
-
-            file.write_all(format!("last_id = {}", date).as_bytes())
-                .expect("ff cache");
-                */
-
-            let indexer = indexer::search_index().unwrap();
-            for chunk in places_it.into_iter().par_bridge().map(|record| {
-                let (url, meta, _id, raw_date) = record;
-                dbg!(&url);
-                if let Some(date) = raw_date {
-                    let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
-                    let path = path.join("firefox_sync_cache.toml");
-                    let path_name = path.to_str().expect("cache");
-                }
-                indexer::get_url(
-                    &url.to_string(),
-                    &indexer,
-                    meta.clone(),
-                    indexer::NoAuthBlockingGetter {},
-                )
-            }) {
-                dbg!(chunk);
-            }
-
-            //dbg!(docs);
-
-            /*
-            for record in places.rev() {
-                if let Some((url, meta, _id, raw_date)) = record {
-                    if let Some(date) = raw_date {
-                        let mut file = OpenOptions::new()
-                            .truncate(true)
-                            .write(true)
-                            .create(true)
-                            .open(&path_name)
-                            .expect("cache file");
-
-                        file.write_all(format!("last_id = {}", date).as_bytes())
-                            .expect("ff cache");
-                    }
-
-                    indexer::index_url(
-                        url.to_string(),
-                        meta.clone(),
-                        None,
-                        indexer::NoAuthBlockingGetter {},
-                    );
-                }
-
-            }
-            */
         }
         _ => {
             println!("bad");
