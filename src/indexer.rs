@@ -662,8 +662,10 @@ pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> DocIndexSt
         println!("cached file {}", url);
         DocIndexState::Update()
     } else if parsed.domain().is_none() {
+        println!("skipping {}", url);
         DocIndexState::Skip
     } else {
+        println!("getting {}", url);
         DocIndexState::New(getter.get_url(&url))
     }
 }
@@ -673,11 +675,13 @@ pub fn url_doc(
     index: &Index,
     meta: UrlMeta,
     getter: impl IndexGetter,
+    data: Option<GetterResults>,
 ) -> Option<tantivy::Document> {
     let url_hash = md5_hash(&url);
     let parsed = url::Url::parse(&url).expect("url pase");
     let mut doc = tantivy::Document::default();
-    match getter.get_url(&url) {
+    let results = data.unwrap_or_else(|| getter.get_url(&url));
+    match results {
         GetterResults::Text(body) => {
             doc.add_text(index.schema().get_field("content").expect("content"), &body);
             doc.add_text(
@@ -860,7 +864,7 @@ pub fn url_doc(
     Some(doc)
 }
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
-    if let Some(doc) = url_doc(url, index, meta, getter) {
+    if let Some(doc) = url_doc(url, index, meta, getter, None) {
         let mut index_writer = index.writer(50_000_000).expect("writer");
         index_writer.add_document(doc);
         index_writer.commit().expect("commit");

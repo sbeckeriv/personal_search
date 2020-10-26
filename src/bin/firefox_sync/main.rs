@@ -195,6 +195,7 @@ fn main() -> tantivy::Result<()> {
             }
             let results = &record_list
                 .par_iter()
+                //.iter()
                 .map(|record| {
                     dbg!(&record.url);
                     (
@@ -202,36 +203,52 @@ fn main() -> tantivy::Result<()> {
                         indexer::get_url(&record.url, &index, indexer::NoAuthBlockingGetter {}),
                     )
                 })
-                .chunks(10)
+                //.collect::<Vec<_>>() // for iter testing
+                .chunks(20)
                 .map(|chunks| {
                     let time = Utc::now().timestamp();
-                    chunks
-                        .iter()
-                        .map(|data| {
-                            dbg!(&data.0);
-                            dbg!(time);
-                            let place = records_data.get(&data.0).unwrap().last().unwrap();
-                            let web_data = data.1.clone();
-                            let meta = indexer::UrlMeta {
-                                url: Some(place.url.clone()),
-                                title: place.title.clone(),
-                                bookmarked: Some(bookmarks.contains(&place.id)),
-                                last_visit: place
-                                    .last_visit_date
-                                    .map(|num| Utc.timestamp(num / 1000000, 0)),
-                                access_count: Some(place.visit_count),
-                                pinned: None,
-                                tags_add: None,
-                                tags_remove: None,
-                                hidden: Some(0),
-                            };
+                    let index_write = indexer::search_index().unwrap();
 
-                            dbg!(time);
-                            dbg!(&data.0);
-                            meta
-                            // index
-                        })
-                        .collect::<Vec<_>>()
+                    let mut index_writer = index_write.writer(50_000_000).expect("writer");
+                    for data in chunks.iter() {
+                        dbg!(&data.0);
+                        dbg!(time);
+                        let place = records_data.get(&data.0).unwrap().last().unwrap();
+                        match &data.1 {
+                            indexer::DocIndexState::New(web_data) => {
+                                let meta = indexer::UrlMeta {
+                                    url: Some(place.url.clone()),
+                                    title: place.title.clone(),
+                                    bookmarked: Some(bookmarks.contains(&place.id)),
+                                    last_visit: place
+                                        .last_visit_date
+                                        .map(|num| Utc.timestamp(num / 1000000, 0)),
+                                    access_count: Some(place.visit_count),
+                                    pinned: None,
+                                    tags_add: None,
+                                    tags_remove: None,
+                                    hidden: Some(0),
+                                };
+
+                                dbg!(time);
+
+                                if let Some(doc) = indexer::url_doc(
+                                    &place.url.clone(),
+                                    &index_write,
+                                    meta,
+                                    indexer::NoAuthBlockingGetter {},
+                                    Some(web_data.clone()),
+                                ) {
+                                    index_writer.add_document(doc);
+                                }
+                            }
+                            _ => {}
+                        }
+                        // index
+                    }
+
+                    index_writer.commit().expect("commit");
+                    index_writer.wait_merging_threads().expect("merge");
                 })
                 .collect::<Vec<_>>();
         }
