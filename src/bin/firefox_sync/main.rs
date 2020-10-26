@@ -193,31 +193,23 @@ fn main() -> tantivy::Result<()> {
                     .or_insert_with(Vec::new)
                     .push(record.clone());
             }
-
             let results = &record_list
-                .par_chunks(10)
-                .map(|chunks| {
-                    dbg!(&chunks);
-                    chunks
-                        .iter()
-                        .map(|record| {
-                            dbg!(&record.url);
-                            (
-                                record.url.clone(),
-                                indexer::get_url(
-                                    &record.url,
-                                    &index,
-                                    indexer::NoAuthBlockingGetter {},
-                                ),
-                            )
-                        })
-                        .collect::<Vec<_>>()
+                .par_iter()
+                .map(|record| {
+                    dbg!(&record.url);
+                    (
+                        record.url.clone(),
+                        indexer::get_url(&record.url, &index, indexer::NoAuthBlockingGetter {}),
+                    )
                 })
+                .chunks(10)
                 .map(|chunks| {
+                    let time = Utc::now().timestamp();
                     chunks
                         .iter()
                         .map(|data| {
                             dbg!(&data.0);
+                            dbg!(time);
                             let place = records_data.get(&data.0).unwrap().last().unwrap();
                             let web_data = data.1.clone();
                             let meta = indexer::UrlMeta {
@@ -234,6 +226,7 @@ fn main() -> tantivy::Result<()> {
                                 hidden: Some(0),
                             };
 
+                            dbg!(time);
                             dbg!(&data.0);
                             meta
                             // index
