@@ -64,6 +64,7 @@ struct MozPlaces {
     visit_count: i64,
     hidden: u8,
     last_visit_date: Option<i64>,
+    bookmarked: bool,
 }
 
 #[derive(Debug)]
@@ -71,6 +72,85 @@ struct MozBookmarks {
     id: i64,
     fk: Option<i64>,
     title: Option<String>,
+}
+
+fn records(place_file: &PathBuf, backfill: bool, last_id: Option<i64>) -> Vec<MozPlaces> {
+    let tmp_dir = tempfile::TempDir::new().expect("tmp_dir");
+    let tempfile = tmp_dir.path().join("tmpfile");
+    let tempfile = tempfile.to_str().unwrap();
+    fs::copy(place_file, tempfile).unwrap();
+    let conn = Connection::open(tempfile).expect("opening sqlite file");
+    let mut stmt = conn
+        .prepare("SELECT id, fk, title FROM moz_bookmarks")
+        .expect("book prep");
+
+    let bookmark_iter = stmt
+        .query_map(params![], |row| {
+            Ok(MozBookmarks {
+                id: row.get(0).unwrap(),
+                fk: row.get(1).unwrap(),
+                title: row.get(2).unwrap(),
+            })
+        })
+        .expect("bookmark sql");
+    let bookmarks: HashSet<i64> = HashSet::from_iter(
+        bookmark_iter
+            .filter(|b| b.as_ref().ok().unwrap().fk.is_some())
+            .map(|b| b.as_ref().ok().unwrap().fk.unwrap()),
+    );
+
+    let mut stmt = conn.prepare("SELECT id, url, title, description, visit_count, hidden, last_visit_date FROM moz_places order by last_visit_date desc").expect("place prep");
+    let places_sql = stmt
+        .query_map(params![], |row| {
+            // dont use wrapper object. we could call it right here.
+            let id = row.get(0).unwrap();
+            Ok(MozPlaces {
+                id: id,
+                url: row.get(1).unwrap(),
+                title: row.get(2).unwrap(),
+                description: row.get(3).unwrap(),
+                visit_count: row.get(4).unwrap(),
+                hidden: row.get(5).unwrap(),
+                last_visit_date: row.get(6).unwrap(),
+                bookmarked: bookmarks.contains(&id),
+            })
+        })
+        .expect("place sql");
+
+    places_sql
+        .filter(|record| {
+            let place = record.as_ref().unwrap();
+            if place.visit_count > 0 && place.hidden == 0 {
+                //move off of index and on time last_visit_date for updates
+                if let Some(id_check) = last_id {
+                    if let Some(last_visit) = place.last_visit_date {
+                        if backfill {
+                            // backfill we start with the newest so we want the oldest.
+                            if id_check < last_visit {
+                                false
+                            } else {
+                                true
+                            }
+                        } else {
+                            // move forward in time.
+                            if id_check > last_visit {
+                                false
+                            } else {
+                                true
+                            }
+                        }
+                    } else {
+                        true
+                    }
+                } else {
+                    true
+                }
+            } else {
+                false
+            }
+        })
+        .filter_map(Result::ok)
+        .collect::<Vec<_>>()
 }
 
 fn main() -> tantivy::Result<()> {
@@ -107,93 +187,24 @@ fn main() -> tantivy::Result<()> {
 
     match place {
         Some(place_file) => {
-            let tmp_dir = tempfile::TempDir::new().expect("tmp_dir");
-            let tempfile = tmp_dir.path().join("tmpfile");
-            let tempfile = tempfile.to_str().unwrap();
-            fs::copy(place_file, tempfile).unwrap();
-            let conn = Connection::open(tempfile).expect("opening sqlite file");
-            let mut stmt = conn
-                .prepare("SELECT id, fk, title FROM moz_bookmarks")
-                .expect("book prep");
-
-            let bookmark_iter = stmt
-                .query_map(params![], |row| {
-                    Ok(MozBookmarks {
-                        id: row.get(0).unwrap(),
-                        fk: row.get(1).unwrap(),
-                        title: row.get(2).unwrap(),
-                    })
-                })
-                .expect("bookmark sql");
-            let bookmarks: HashSet<i64> = HashSet::from_iter(
-                bookmark_iter
-                    .filter(|b| b.as_ref().ok().unwrap().fk.is_some())
-                    .map(|b| b.as_ref().ok().unwrap().fk.unwrap()),
-            );
-
-            let mut stmt = conn.prepare("SELECT id, url, title, description, visit_count, hidden, last_visit_date FROM moz_places order by last_visit_date desc").expect("place prep");
-            let places_sql = stmt
-                .query_map(params![], |row| {
-                    // dont use wrapper object. we could call it right here.
-                    Ok(MozPlaces {
-                        id: row.get(0).unwrap(),
-                        url: row.get(1).unwrap(),
-                        title: row.get(2).unwrap(),
-                        description: row.get(3).unwrap(),
-                        visit_count: row.get(4).unwrap(),
-                        hidden: row.get(5).unwrap(),
-                        last_visit_date: row.get(6).unwrap(),
-                    })
-                })
-                .expect("place sql");
-
-            let index = indexer::search_index().unwrap();
-            let records = places_sql.filter(|record| {
-                let place = record.as_ref().unwrap();
-                if place.visit_count > 0 && place.hidden == 0 {
-                    //move off of index and on time last_visit_date for updates
-                    if let Some(id_check) = last_id {
-                        if let Some(last_visit) = place.last_visit_date {
-                            if opt.backfill {
-                                // backfill we start with the newest so we want the oldest.
-                                if id_check < last_visit {
-                                    false
-                                } else {
-                                    true
-                                }
-                            } else {
-                                // move forward in time.
-                                if id_check > last_visit {
-                                    false
-                                } else {
-                                    true
-                                }
-                            }
-                        } else {
-                            true
-                        }
-                    } else {
-                        true
-                    }
-                } else {
-                    false
-                }
-            });
-
+            let records = records(&place_file, opt.backfill, last_id);
             let limit = if last_id.is_none() { 1000 } else { 100000000 };
-            let record_list = records
-                .filter_map(Result::ok)
-                .take(limit)
-                .collect::<Vec<_>>();
+            let record_list = records.iter().take(limit).collect::<Vec<_>>();
 
+            let mut date = 0;
             let mut records_data = HashMap::new();
             for record in &record_list {
+                if let Some(last_date) = record.last_visit_date {
+                    if last_date > date {
+                        date = last_date.clone();
+                    }
+                }
                 records_data
                     .entry(record.url.clone())
                     .or_insert_with(Vec::new)
                     .push(record.clone());
             }
-
+            let index = indexer::search_index().unwrap();
             let index_write = indexer::search_index().unwrap();
             let results = &record_list
                 .par_iter()
@@ -209,7 +220,6 @@ fn main() -> tantivy::Result<()> {
                 .chunks(20)
                 .map(|chunks| {
                     let time = Utc::now().timestamp();
-
                     for data in chunks.iter() {
                         dbg!(&data.0);
                         dbg!(time);
@@ -219,7 +229,7 @@ fn main() -> tantivy::Result<()> {
                                 let meta = indexer::UrlMeta {
                                     url: Some(place.url.clone()),
                                     title: place.title.clone(),
-                                    bookmarked: Some(bookmarks.contains(&place.id)),
+                                    bookmarked: Some(place.bookmarked),
                                     last_visit: place
                                         .last_visit_date
                                         .map(|num| Utc.timestamp(num / 1000000, 0)),
@@ -229,8 +239,6 @@ fn main() -> tantivy::Result<()> {
                                     tags_remove: None,
                                     hidden: Some(0),
                                 };
-
-                                dbg!(time);
 
                                 if let Some(doc) = indexer::url_doc(
                                     &place.url.clone(),
@@ -251,6 +259,16 @@ fn main() -> tantivy::Result<()> {
                     index_writer_wlock.commit().expect("commit");
                 })
                 .collect::<Vec<_>>();
+
+            let mut file = OpenOptions::new()
+                .truncate(true)
+                .write(true)
+                .create(true)
+                .open(&path_name)
+                .expect("cache file");
+
+            file.write_all(format!("last_id = {}", date).as_bytes())
+                .expect("ff cache");
         }
         _ => {
             println!("bad");
