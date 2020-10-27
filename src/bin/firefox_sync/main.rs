@@ -205,7 +205,6 @@ fn main() -> tantivy::Result<()> {
                     .push(record.clone());
             }
             let index = indexer::search_index().unwrap();
-            let index_write = indexer::search_index().unwrap();
             let results = &record_list
                 .par_iter()
                 //.iter()
@@ -242,7 +241,7 @@ fn main() -> tantivy::Result<()> {
 
                                 if let Some(doc) = indexer::url_doc(
                                     &place.url.clone(),
-                                    &index_write,
+                                    &index,
                                     meta,
                                     indexer::NoAuthBlockingGetter {},
                                     Some(web_data.clone()),
