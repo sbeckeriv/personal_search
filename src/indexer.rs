@@ -626,7 +626,7 @@ pub fn just_content_text(document: &document::Document) -> Option<String> {
         }
     }
 }
-
+// used for cleaing the view of an html string
 pub fn view_body(body: &str) -> String {
     let document = document::Document::from(body);
 
@@ -648,6 +648,7 @@ pub fn view_body(body: &str) -> String {
     }
 }
 
+// Used when figuring out what to do with a url
 #[derive(Debug, Clone)]
 pub enum GetUrlStatus {
     New(GetterResults),
@@ -655,6 +656,8 @@ pub enum GetUrlStatus {
     Skip,
     Have,
 }
+
+// Given a url what should we do with it? This does retrive the url if we should get it.
 pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> GetUrlStatus {
     // strip out of the fragment to reduce dup urls
     let parsed = url::Url::parse(&url).expect("url pase");
@@ -683,6 +686,7 @@ pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> GetUrlStat
     }
 }
 
+// Document based on GetterResults
 pub fn url_doc(
     url: &str,
     index: &Index,
@@ -876,6 +880,7 @@ pub fn url_doc(
     doc.add_text(index.schema().get_field("id").expect("id"), &url_hash);
     Some(doc)
 }
+
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
     if let Some(doc) = url_doc(url, index, meta, getter, None) {
         let mut index_writer = index.writer(50_000_000).expect("writer");
