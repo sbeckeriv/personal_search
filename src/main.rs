@@ -1,10 +1,10 @@
-use html2md;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use termimad;
+
 mod indexer;
 
 #[derive(StructOpt, Debug)]
@@ -53,7 +53,7 @@ fn facets(index: tantivy::Index, field: &str, facet: &str) {
     let facets: Vec<(&Facet, u64)> = facet_counts.get(facet).collect();
     dbg!(facets);
 }
-fn search(query: String, index: tantivy::Index, debug: bool) {
+fn search(query: String, index: tantivy::Index, _debug: bool) {
     let searcher = indexer::searcher(&index);
     let default_fields: Vec<tantivy::schema::Field> = index
         .schema()
@@ -165,7 +165,7 @@ fn main() -> tantivy::Result<()> {
             } else if let Some(query) = opt.query {
                 search(query, index, opt.debug);
             } else if let Some(url) = opt.show {
-                let url = if url.contains(".") {
+                let url = if url.contains('.') {
                     indexer::md5_hash(&url)
                 } else {
                     url

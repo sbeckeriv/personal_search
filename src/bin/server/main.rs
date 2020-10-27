@@ -354,7 +354,7 @@ pub struct AttributeRequest {
     value: i8,
 }
 async fn attribute_request(
-    request: HttpRequest,
+    _request: HttpRequest,
     web::Query(info): web::Query<AttributeRequest>,
 ) -> web::Json<Option<SearchJson>> {
     if info.field.as_str() == "hide_domain" {

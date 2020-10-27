@@ -5,114 +5,35 @@ use probabilistic_collections::SipHasherBuilder;
 #[cfg(feature = "ml")]
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
 use select::document;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::convert::TryInto;
 use std::fs;
 use std::fs::File;
-use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
-use std::panic;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
 
-#[derive(Debug, Clone)]
-pub enum GetterResults {
-    Html(String),
-    Text(String),
-    Nothing,
-}
-pub trait IndexGetter {
-    fn get_url(&self, url: &str) -> GetterResults {
-        dbg!(&url);
-        let agent = ureq::Agent::default().build();
-        let res = agent
-            .get(url)
-            .set(
-                "User-Agent",
-                "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-            )
-            .set("X-Source", "https://github.com/sbeckeriv/personal_search")
-            .timeout(Duration::new(10, 0))
-            .call();
-        if res.status() < 300 {
-            if let Some(lower) = res.header("Content-Type") {
-                dbg!(&lower);
-                let lower = lower.to_lowercase();
-                if lower == "" || lower.contains("html") {
-                    GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
-                } else if lower.contains("text") && !lower.contains("javascript") {
-                    GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
-                } else if lower.contains("pdf") {
-                    //GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
-                    GetterResults::Nothing
-                } else {
-                    GetterResults::Nothing
-                }
-            } else {
-                GetterResults::Nothing
-            }
-        } else {
-            println!("{} status: {} {}", url, res.status_text(), res.status());
-            GetterResults::Nothing
-        }
-    }
-}
+pub mod getter;
+pub mod hash_index;
+pub mod system_settings;
+pub use getter::*;
+pub use hash_index::*;
+pub use system_settings::*;
+
 pub struct NoAuthBlockingGetter {}
 impl IndexGetter for NoAuthBlockingGetter {}
 
-#[derive(Serialize, Debug, Deserialize)]
-pub struct SystemSettings {
-    pub port: String,
-    pub ignore_domains: Vec<String>,
-    pub indexer_enabled: bool,
-    pub ignore_strings: Vec<String>,
-}
-
-impl Default for SystemSettings {
-    fn default() -> Self {
-        SystemSettings {
-            port: "7172".to_string(),
-            ignore_strings: vec![],
-            indexer_enabled: false,
-            ignore_domains: vec![
-                ".lvh.me".to_string(),
-                "//lvh.me".to_string(),
-                "//localhost/".to_string(),
-                "//localhost:".to_string(),
-                "google.com/".to_string(),
-                "youtube.com/".to_string(),
-                "ebay.com/".to_string(),
-                "aha.io/".to_string(),
-                "newrelic.com/".to_string(),
-                "datadoghq.com/".to_string(),
-                "amazon.com/".to_string(),
-                "woot.com/".to_string(),
-                "imgur.com".to_string(),
-                "gstatic.com/".to_string(),
-                "slack.com".to_string(),
-                "facebook.com".to_string(),
-                "instagram.com".to_string(),
-                "pintrest.com".to_string(),
-                "zillow.com".to_string(),
-                "redfin.com".to_string(),
-            ],
-        }
-    }
-}
 use std::env;
 lazy_static::lazy_static! {
-
     pub static ref SEARCHINDEXWRITER: Arc<RwLock<tantivy::IndexWriter>> = {
-        let index = search_index().expect("hash index");
+        let index = search_index().expect("search index");
         Arc::new(RwLock::new(index.writer(50_000_000).unwrap()))
     };
     pub static ref HASHINDEXWRITER: Arc<RwLock<tantivy::IndexWriter>> = {
@@ -142,51 +63,6 @@ lazy_static::lazy_static! {
     };
 }
 
-pub fn write_settings(config: &SystemSettings) {
-    let path = Path::new(BASE_INDEX_DIR.as_str());
-    let path_name = path.join("server_settings.toml");
-    create_directory(&BASE_INDEX_DIR);
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .truncate(true)
-        .create(true)
-        .open(&path_name)
-        .expect("setting file write");
-    file.write_all(toml::to_string(&config).unwrap().as_bytes())
-        .expect("file");
-    file.sync_all().expect("file write");
-}
-
-pub fn read_settings() -> SystemSettings {
-    let path = Path::new(BASE_INDEX_DIR.as_str());
-    let path_name = path.join("server_settings.toml");
-    create_directory(&BASE_INDEX_DIR);
-    let mut s = String::new();
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(&path_name);
-
-    match file {
-        Err(_why) => {
-            //println!("couldn't open {}: {}", path_name, why.to_string());
-        }
-        Ok(mut file) => {
-            if let Err(why) = file.read_to_string(&mut s) {
-                panic!("couldn't read {:#?}: {}", path_name.to_str(), why)
-            };
-        }
-    };
-    if !s.is_empty() {
-        let config: SystemSettings = toml::from_str(&s).expect("bad config parse");
-        config
-    } else {
-        SystemSettings::default()
-    }
-}
-
 fn create_directory(system_path: &str) {
     let index_path = Path::new(system_path);
     let paths = vec![
@@ -209,35 +85,6 @@ fn index_directory(
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
 
     tantivy::directory::MmapDirectory::open(index_path.join("index"))
-}
-
-fn hash_directory(
-) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError> {
-    create_directory(&BASE_INDEX_DIR);
-    let index_path = Path::new(BASE_INDEX_DIR.as_str());
-
-    tantivy::directory::MmapDirectory::open(index_path.join("hashes"))
-}
-
-pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
-    // dont keep its own index? we are writing the domain and duplicate urls to prevent them
-    // from reloading. just use that?
-    let directory = hash_directory();
-
-    let mut schema_builder = Schema::builder();
-    schema_builder.add_text_field("domain", TEXT | STORED);
-    schema_builder.add_facet_field("hashes");
-
-    let schema = schema_builder.build();
-    match directory {
-        Ok(dir) => Index::open_or_create(dir, schema),
-        Err(_) => {
-            println!("dir not found");
-            Err(tantivy::TantivyError::SystemError(format!(
-                "could not open hash index directory"
-            )))
-        }
-    }
 }
 
 pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
@@ -324,65 +171,6 @@ pub fn md5_hash(domain: &str) -> String {
     format!("{:x}", digest)
 }
 
-pub fn add_hash(domain: &str, hash: u64) {
-    let index = hash_index().expect("hash index");
-    let searcher = searcher(&index);
-    let index_writer_read = HASHINDEXWRITER.clone();
-    let query_parser = QueryParser::for_index(
-        &index,
-        vec![index.schema().get_field("domain").expect("domain field")],
-    );
-    let domain_hash = md5_hash(&domain);
-    let query = query_parser
-        .parse_query(&format!("\"{}\"", &domain_hash))
-        .expect("query parse for domain match");
-
-    let top_docs = searcher
-        .search(&query, &TopDocs::with_limit(1))
-        .expect("search");
-
-    let new_hash = format!("/{}", hash);
-    let mut doc = if let Some(result) = top_docs.first() {
-        let doc = searcher.doc(result.1).expect("doc");
-        // dont dup the facet
-        for s in doc
-            .get_all(index.schema().get_field("hashes").expect("f"))
-            .iter()
-        {
-            if let tantivy::schema::Value::Facet(facet) = s {
-                if facet.to_path_string() == new_hash {
-                    return;
-                }
-            }
-        }
-        let frankenstein_isbn = Term::from_field_text(
-            index.schema().get_field("domain").expect("domain field"),
-            &domain_hash,
-        );
-        index_writer_read
-            .read()
-            .unwrap()
-            .delete_term(frankenstein_isbn);
-        doc
-    } else {
-        let mut doc = tantivy::Document::default();
-        doc.add_text(
-            index.schema().get_field("domain").expect("domain"),
-            &domain_hash,
-        );
-        doc
-    };
-
-    doc.add_facet(
-        index.schema().get_field("hashes").expect("hash"),
-        Facet::from(&new_hash),
-    );
-
-    index_writer_read.read().unwrap().add_document(doc);
-
-    let mut index_writer_wlock = HASHINDEXWRITER.write().unwrap();
-    index_writer_wlock.commit().unwrap();
-}
 pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document {
     let json_string = read_source(url_hash).expect("json update doc is not there");
     let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
@@ -571,7 +359,7 @@ pub fn html_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> 
                                 href.1
                             ));
                         }
-                        string.push_str(">");
+                        string.push('>');
                     } else if name == "img" {
                         string.push_str(&format!("<{} ", name,));
                         if let Some(href) =
@@ -583,7 +371,7 @@ pub fn html_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> 
                                 href.1
                             ));
                         }
-                        string.push_str(">");
+                        string.push('>');
                     } else {
                         string.push_str(&format!("<{}>", name));
                     }
@@ -750,12 +538,7 @@ pub fn url_doc(
                 _ => &empty,
             };
 
-            let body = if let Some(content) = just_content_text(&document) {
-                content
-            } else {
-                // nothing to index
-                return None;
-            };
+            let body = just_content_text(&document)?;
             if body.split_whitespace().nth(100).is_some() {
                 let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
                 let content_hash =
@@ -1023,7 +806,7 @@ pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
 pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAddress> {
     let searcher = searcher(&index);
 
-    let url_hash = if url.contains(":") {
+    let url_hash = if url.contains(':') {
         md5_hash(url)
     } else {
         url.to_string()

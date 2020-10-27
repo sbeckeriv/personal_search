@@ -116,18 +116,10 @@ fn records(place_file: &PathBuf, backfill: bool, last_id: Option<i64>) -> Vec<Pl
                     if let Some(last_visit) = place.last_visit_date {
                         if backfill {
                             // backfill we start with the newest so we want the oldest.
-                            if id_check < last_visit {
-                                false
-                            } else {
-                                true
-                            }
+                            id_check >= last_visit
                         } else {
                             // move forward in time.
-                            if id_check > last_visit {
-                                false
-                            } else {
-                                true
-                            }
+                            id_check <= last_visit
                         }
                     } else {
                         true
@@ -185,7 +177,7 @@ fn main() -> tantivy::Result<()> {
             for record in &record_list {
                 if let Some(last_date) = record.last_visit_date {
                     if last_date > date {
-                        date = last_date.clone();
+                        date = last_date;
                     }
                 }
                 records_data
@@ -194,7 +186,7 @@ fn main() -> tantivy::Result<()> {
                     .push(record.clone());
             }
 
-            let results = &record_list
+            let _results = &record_list
                 .par_iter()
                 .map(|record| {
                     dbg!(&record.url);
@@ -205,7 +197,7 @@ fn main() -> tantivy::Result<()> {
                 })
                 .chunks(20)
                 .map(|chunks| {
-                    let time = Utc::now().timestamp();
+                    let _time = Utc::now().timestamp();
                     for data in chunks.iter() {
                         let place = records_data.get(&data.0).unwrap().last().unwrap();
                         match &data.1 {

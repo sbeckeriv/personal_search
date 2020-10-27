@@ -12,7 +12,7 @@ use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+
 use structopt::StructOpt;
 use toml::Value;
 
@@ -105,7 +105,7 @@ fn records(place_file: &PathBuf, backfill: bool, last_id: Option<i64>) -> Vec<Mo
             // dont use wrapper object. we could call it right here.
             let id = row.get(0).unwrap();
             Ok(MozPlaces {
-                id: id,
+                id,
                 url: row.get(1).unwrap(),
                 title: row.get(2).unwrap(),
                 description: row.get(3).unwrap(),
@@ -126,18 +126,10 @@ fn records(place_file: &PathBuf, backfill: bool, last_id: Option<i64>) -> Vec<Mo
                     if let Some(last_visit) = place.last_visit_date {
                         if backfill {
                             // backfill we start with the newest so we want the oldest.
-                            if id_check < last_visit {
-                                false
-                            } else {
-                                true
-                            }
+                            id_check >= last_visit
                         } else {
                             // move forward in time.
-                            if id_check > last_visit {
-                                false
-                            } else {
-                                true
-                            }
+                            id_check <= last_visit
                         }
                     } else {
                         true
@@ -196,7 +188,7 @@ fn main() -> tantivy::Result<()> {
             for record in &record_list {
                 if let Some(last_date) = record.last_visit_date {
                     if last_date > date {
-                        date = last_date.clone();
+                        date = last_date;
                     }
                 }
                 records_data
@@ -205,7 +197,7 @@ fn main() -> tantivy::Result<()> {
                     .push(record.clone());
             }
             let index = indexer::search_index().unwrap();
-            let results = &record_list
+            let _results = &record_list
                 .par_iter()
                 //.iter()
                 .map(|record| {
