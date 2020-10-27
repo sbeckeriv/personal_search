@@ -16,6 +16,7 @@ use std::io::Read;
 use std::io::Write;
 use std::panic;
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
@@ -109,6 +110,15 @@ impl Default for SystemSettings {
 }
 use std::env;
 lazy_static::lazy_static! {
+
+    pub static ref SEARCHINDEXWRITER: Arc<RwLock<tantivy::IndexWriter>> = {
+        let index = search_index().expect("hash index");
+        Arc::new(RwLock::new(index.writer(50_000_000).unwrap()))
+    };
+    pub static ref HASHINDEXWRITER: Arc<RwLock<tantivy::IndexWriter>> = {
+        let index = hash_index().expect("hash index");
+        Arc::new(RwLock::new(index.writer(50_000_000).unwrap()))
+    };
     pub static ref CACHEDCONFIG: SystemSettings = read_settings();
     pub static ref BASE_INDEX_DIR: String = match env::var("PS_INDEX_DIRECTORY") {
         Ok(val) => {
@@ -209,7 +219,7 @@ fn hash_directory(
     tantivy::directory::MmapDirectory::open(index_path.join("hashes"))
 }
 
-pub fn hash_index(system_path: &str) -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
+pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
     // dont keep its own index? we are writing the domain and duplicate urls to prevent them
     // from reloading. just use that?
     let directory = hash_directory();
@@ -224,8 +234,7 @@ pub fn hash_index(system_path: &str) -> std::result::Result<tantivy::Index, tant
         Err(_) => {
             println!("dir not found");
             Err(tantivy::TantivyError::SystemError(format!(
-                "could not open index directory {}",
-                system_path
+                "could not open hash index directory"
             )))
         }
     }
@@ -316,9 +325,9 @@ pub fn md5_hash(domain: &str) -> String {
 }
 
 pub fn add_hash(domain: &str, hash: u64) {
-    let index = hash_index(&BASE_INDEX_DIR).expect("hash index");
+    let index = hash_index().expect("hash index");
     let searcher = searcher(&index);
-    let mut index_writer = index.writer(50_000_000).expect("writer");
+    let index_writer_read = HASHINDEXWRITER.clone();
     let query_parser = QueryParser::for_index(
         &index,
         vec![index.schema().get_field("domain").expect("domain field")],
@@ -350,7 +359,10 @@ pub fn add_hash(domain: &str, hash: u64) {
             index.schema().get_field("domain").expect("domain field"),
             &domain_hash,
         );
-        index_writer.delete_term(frankenstein_isbn);
+        index_writer_read
+            .read()
+            .unwrap()
+            .delete_term(frankenstein_isbn);
         doc
     } else {
         let mut doc = tantivy::Document::default();
@@ -366,9 +378,10 @@ pub fn add_hash(domain: &str, hash: u64) {
         Facet::from(&new_hash),
     );
 
-    index_writer.add_document(doc);
-    index_writer.commit().expect("commit");
-    index_writer.wait_merging_threads().expect("merge");
+    index_writer_read.read().unwrap().add_document(doc);
+
+    let mut index_writer_wlock = HASHINDEXWRITER.write().unwrap();
+    index_writer_wlock.commit().unwrap();
 }
 pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document {
     let json_string = read_source(url_hash).expect("json update doc is not there");
@@ -960,7 +973,7 @@ pub fn read_source(url_hash: &str) -> Option<String> {
 }
 
 pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
-    let index = hash_index(BASE_INDEX_DIR.as_str()).expect("hash index");
+    let index = hash_index().expect("hash index");
     let searcher = searcher(&index);
     let query_parser = QueryParser::for_index(
         &index,

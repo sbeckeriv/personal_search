@@ -2,17 +2,17 @@ extern crate probabilistic_collections;
 use chrono::{TimeZone, Utc};
 use glob::glob;
 use personal_search::indexer;
+use rayon::prelude::*;
 use rusqlite::{params, Connection, Result};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
-
-use rayon::prelude::*;
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
 use toml::Value;
 
@@ -193,6 +193,8 @@ fn main() -> tantivy::Result<()> {
                     .or_insert_with(Vec::new)
                     .push(record.clone());
             }
+
+            let index_write = indexer::search_index().unwrap();
             let results = &record_list
                 .par_iter()
                 //.iter()
@@ -207,9 +209,7 @@ fn main() -> tantivy::Result<()> {
                 .chunks(20)
                 .map(|chunks| {
                     let time = Utc::now().timestamp();
-                    let index_write = indexer::search_index().unwrap();
 
-                    let mut index_writer = index_write.writer(50_000_000).expect("writer");
                     for data in chunks.iter() {
                         dbg!(&data.0);
                         dbg!(time);
@@ -239,16 +239,16 @@ fn main() -> tantivy::Result<()> {
                                     indexer::NoAuthBlockingGetter {},
                                     Some(web_data.clone()),
                                 ) {
-                                    index_writer.add_document(doc);
+                                    let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
+                                    index_writer_read.read().unwrap().add_document(doc);
                                 }
                             }
                             _ => {}
                         }
                         // index
                     }
-
-                    index_writer.commit().expect("commit");
-                    index_writer.wait_merging_threads().expect("merge");
+                    let mut index_writer_wlock = indexer::SEARCHINDEXWRITER.write().unwrap();
+                    index_writer_wlock.commit().expect("commit");
                 })
                 .collect::<Vec<_>>();
         }
