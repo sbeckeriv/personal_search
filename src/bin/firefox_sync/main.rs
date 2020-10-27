@@ -225,7 +225,7 @@ fn main() -> tantivy::Result<()> {
                         dbg!(time);
                         let place = records_data.get(&data.0).unwrap().last().unwrap();
                         match &data.1 {
-                            indexer::DocIndexState::New(web_data) => {
+                            indexer::GetUrlStatus::New(web_data) => {
                                 let meta = indexer::UrlMeta {
                                     url: Some(place.url.clone()),
                                     title: place.title.clone(),

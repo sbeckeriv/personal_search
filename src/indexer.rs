@@ -649,13 +649,13 @@ pub fn view_body(body: &str) -> String {
 }
 
 #[derive(Debug, Clone)]
-pub enum DocIndexState {
+pub enum GetUrlStatus {
     New(GetterResults),
     Update(),
     Skip,
     Have,
 }
-pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> DocIndexState {
+pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> GetUrlStatus {
     // strip out of the fragment to reduce dup urls
     let parsed = url::Url::parse(&url).expect("url pase");
     let url = if let Some(fragment) = parsed.fragment() {
@@ -667,19 +667,19 @@ pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> DocIndexSt
     println!("indexing {} {}", &url_hash, &url);
     if url_skip(&url) {
         println!("skip {}", url);
-        DocIndexState::Skip
+        GetUrlStatus::Skip
     } else if let Some(_doc_address) = find_url(&url, &index) {
         println!("have {}", url);
-        DocIndexState::Have
+        GetUrlStatus::Have
     } else if source_exists(&url_hash) {
         println!("cached file {}", url);
-        DocIndexState::Update()
+        GetUrlStatus::Update()
     } else if parsed.domain().is_none() {
         println!("skipping {}", url);
-        DocIndexState::Skip
+        GetUrlStatus::Skip
     } else {
         println!("getting {}", url);
-        DocIndexState::New(getter.get_url(&url))
+        GetUrlStatus::New(getter.get_url(&url))
     }
 }
 
