@@ -1,15 +1,16 @@
 extern crate probabilistic_collections;
 use chrono::{TimeZone, Utc};
-
 use personal_search::indexer;
+use rayon::prelude::*;
 use rusqlite::{params, Connection};
-
+use std::collections::HashMap;
 use std::fs;
+use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::Read;
-
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
+use toml::Value;
 
 #[derive(StructOpt, Debug)]
 pub struct Opt {
@@ -84,11 +85,67 @@ struct Places {
     last_visit_date: Option<i64>,
 }
 
-use std::fs::OpenOptions;
+fn records(place_file: &PathBuf, backfill: bool, last_id: Option<i64>) -> Vec<Places> {
+    let tmp_dir = tempfile::TempDir::new().expect("tmp_dir");
+    let tempfile = tmp_dir.path().join("tmpfile");
+    let tempfile = tempfile.to_str().unwrap();
+    fs::copy(place_file, tempfile).unwrap();
+    let conn = Connection::open(tempfile).expect("opening sqlite file");
+
+    let mut stmt = conn.prepare("select visits.id as id, urls.url as url, urls.title as title, urls.visit_count as visit_count, urls.hidden as hidden , visits.visit_time as last_visit_date from visits   join urls on visits.url = urls.id ORDER BY visits.visit_time DESC;").expect("place prep");
+    let places_iter = stmt
+        .query_map(params![], |row| {
+            // dont use wrapper object. we could call it right here.
+            Ok(Places {
+                id: row.get(0).unwrap(),
+                url: row.get(1).unwrap(),
+                title: row.get(2).unwrap(),
+                visit_count: row.get(3).unwrap(),
+                hidden: row.get(4).unwrap(),
+                last_visit_date: row.get(5).unwrap(),
+                description: None,
+            })
+        })
+        .expect("place sql");
+    places_iter
+        .filter(|record| {
+            let place = record.as_ref().unwrap();
+            if place.visit_count > 0 && place.hidden == 0 {
+                //move off of index and on time last_visit_date for updates
+                if let Some(id_check) = last_id {
+                    if let Some(last_visit) = place.last_visit_date {
+                        if backfill {
+                            // backfill we start with the newest so we want the oldest.
+                            if id_check < last_visit {
+                                false
+                            } else {
+                                true
+                            }
+                        } else {
+                            // move forward in time.
+                            if id_check > last_visit {
+                                false
+                            } else {
+                                true
+                            }
+                        }
+                    } else {
+                        true
+                    }
+                } else {
+                    true
+                }
+            } else {
+                false
+            }
+        })
+        .filter_map(Result::ok)
+        .collect::<Vec<_>>()
+}
 
 fn main() -> tantivy::Result<()> {
     let opt = Opt::from_args();
-    let _index = indexer::search_index().unwrap();
+    let index = indexer::search_index().unwrap();
     let place = match opt.db.clone() {
         Some(arg_path) => Some(arg_path),
         None => find_places_file(),
@@ -111,88 +168,76 @@ fn main() -> tantivy::Result<()> {
             };
         }
     };
-    let last_id = if !s.is_empty() { Some(0) } else { None };
+    let last_id = if !s.is_empty() {
+        let value = s.parse::<Value>().unwrap();
+        value["last_id"].as_integer()
+    } else {
+        None
+    };
 
     match place {
         Some(place_file) => {
-            let tmp_dir = tempfile::TempDir::new().expect("tmp_dir");
-            let tempfile = tmp_dir.path().join("tmpfile");
-            let tempfile = tempfile.to_str().unwrap();
-            fs::copy(place_file, tempfile).unwrap();
-            let conn = Connection::open(tempfile).expect("opening sqlite file");
+            let records = records(&place_file, opt.backfill, last_id);
+            let limit = if last_id.is_none() { 1000 } else { 100000000 };
+            let record_list = records.iter().take(limit).collect::<Vec<_>>();
+            let mut date = 0;
+            let mut records_data = HashMap::new();
+            for record in &record_list {
+                if let Some(last_date) = record.last_visit_date {
+                    if last_date > date {
+                        date = last_date.clone();
+                    }
+                }
+                records_data
+                    .entry(record.url.clone())
+                    .or_insert_with(Vec::new)
+                    .push(record.clone());
+            }
 
-            let mut stmt = conn.prepare("select visits.id as id, urls.url as url, urls.title as title, urls.visit_count as visit_count, urls.hidden as hidden , visits.visit_time as last_visit_date from visits   join urls on visits.url = urls.id ORDER BY visits.visit_time DESC;").expect("place prep");
-            let places_iter = stmt
-                .query_map(params![], |row| {
-                    // dont use wrapper object. we could call it right here.
-                    Ok(Places {
-                        id: row.get(0).unwrap(),
-                        url: row.get(1).unwrap(),
-                        title: row.get(2).unwrap(),
-                        visit_count: row.get(3).unwrap(),
-                        hidden: row.get(4).unwrap(),
-                        last_visit_date: row.get(5).unwrap(),
-                        description: None,
-                    })
-                })
-                .expect("place sql");
-            let places = places_iter
+            let results = &record_list
+                .par_iter()
                 .map(|record| {
-                    let place = record.unwrap();
-
-                    dbg!(&place);
-
-                    if place.visit_count > 0 && place.hidden == 0 {
-                        dbg!(&last_id);
-                        //move off of index and on time last_visit_date for updates
-                        if let Some(id_check) = last_id {
-                            if let Some(last_visit) = place.last_visit_date {
-                                if opt.backfill {
-                                    // backfill we start with the newest so we want the oldest.
-                                    if id_check < last_visit {
-                                        return None;
-                                    }
-                                } else {
-                                    // move forward in time.
-                                    if id_check > last_visit {
-                                        return None;
-                                    }
+                    dbg!(&record.url);
+                    (
+                        record.url.clone(),
+                        indexer::get_url(&record.url, &index, indexer::NoAuthBlockingGetter {}),
+                    )
+                })
+                .chunks(20)
+                .map(|chunks| {
+                    let time = Utc::now().timestamp();
+                    for data in chunks.iter() {
+                        let place = records_data.get(&data.0).unwrap().last().unwrap();
+                        match &data.1 {
+                            indexer::GetUrlStatus::New(web_data) => {
+                                //https://gist.github.com/dropmeaword/9372cbeb29e8390521c2
+                                let date = place
+                                    .last_visit_date
+                                    .map(|num| Utc.timestamp(num / 1000000 - 11644473600, 0));
+                                let meta = indexer::UrlMeta {
+                                    url: Some(place.url.clone()),
+                                    title: place.title.clone(),
+                                    bookmarked: None,
+                                    last_visit: date,
+                                    access_count: Some(place.visit_count),
+                                    pinned: None,
+                                    tags_add: None,
+                                    tags_remove: None,
+                                    hidden: None,
+                                };
+                                if let Some(doc) = indexer::url_doc(
+                                    &place.url.clone(),
+                                    &index,
+                                    meta,
+                                    indexer::NoAuthBlockingGetter {},
+                                    Some(web_data.clone()),
+                                ) {
+                                    let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
+                                    index_writer_read.read().unwrap().add_document(doc);
                                 }
                             }
+                            _ => {}
                         }
-
-                        let meta = indexer::UrlMeta {
-                            url: Some(place.url.clone()),
-                            title: place.title,
-                            bookmarked: None,
-                            last_visit: place
-                                .last_visit_date
-                                //https://gist.github.com/dropmeaword/9372cbeb29e8390521c2
-                                .map(|num| Utc.timestamp(num / 1000000 - 11644473600, 0)),
-                            access_count: Some(place.visit_count),
-                            pinned: None,
-                            tags_add: None,
-                            tags_remove: None,
-                            hidden: None,
-                        };
-                        Some((place.url, meta, place.id, place.last_visit_date))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            // first run only the last 1000 urls
-            let places = if last_id.is_none() {
-                places.iter().take(1000)
-            } else {
-                places.iter().take(1000000)
-            };
-
-            for record in places.rev() {
-                if let Some((url, meta, _id, raw_date)) = record {
-                    if let Some(date) = raw_date {
-                        dbg!(&raw_date);
                         let mut file = OpenOptions::new()
                             .truncate(true)
                             .write(true)
@@ -201,23 +246,15 @@ fn main() -> tantivy::Result<()> {
                             .expect("cache file");
 
                         file.write_all(format!("last_id = {}", date).as_bytes())
-                            .expect("ff cache");
+                            .expect("chrome cache");
                     }
-
-                    dbg!(&url);
-                    indexer::index_url(
-                        url.to_string(),
-                        meta.clone(),
-                        None,
-                        indexer::NoAuthBlockingGetter {},
-                    );
-                }
-            }
+                })
+                .collect::<Vec<_>>();
         }
+
         _ => {
             println!("bad");
         }
-    };
-
+    }
     Ok(())
 }

@@ -16,6 +16,7 @@ use std::io::Read;
 use std::io::Write;
 use std::panic;
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
@@ -23,6 +24,7 @@ use tantivy::schema::*;
 use tantivy::{Index, ReloadPolicy};
 use triple_accel::hamming;
 
+#[derive(Debug, Clone)]
 pub enum GetterResults {
     Html(String),
     Text(String),
@@ -30,6 +32,7 @@ pub enum GetterResults {
 }
 pub trait IndexGetter {
     fn get_url(&self, url: &str) -> GetterResults {
+        dbg!(&url);
         let agent = ureq::Agent::default().build();
         let res = agent
             .get(url)
@@ -42,6 +45,7 @@ pub trait IndexGetter {
             .call();
         if res.status() < 300 {
             if let Some(lower) = res.header("Content-Type") {
+                dbg!(&lower);
                 let lower = lower.to_lowercase();
                 if lower == "" || lower.contains("html") {
                     GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
@@ -106,6 +110,15 @@ impl Default for SystemSettings {
 }
 use std::env;
 lazy_static::lazy_static! {
+
+    pub static ref SEARCHINDEXWRITER: Arc<RwLock<tantivy::IndexWriter>> = {
+        let index = search_index().expect("hash index");
+        Arc::new(RwLock::new(index.writer(50_000_000).unwrap()))
+    };
+    pub static ref HASHINDEXWRITER: Arc<RwLock<tantivy::IndexWriter>> = {
+        let index = hash_index().expect("hash index");
+        Arc::new(RwLock::new(index.writer(50_000_000).unwrap()))
+    };
     pub static ref CACHEDCONFIG: SystemSettings = read_settings();
     pub static ref BASE_INDEX_DIR: String = match env::var("PS_INDEX_DIRECTORY") {
         Ok(val) => {
@@ -206,7 +219,7 @@ fn hash_directory(
     tantivy::directory::MmapDirectory::open(index_path.join("hashes"))
 }
 
-pub fn hash_index(system_path: &str) -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
+pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError> {
     // dont keep its own index? we are writing the domain and duplicate urls to prevent them
     // from reloading. just use that?
     let directory = hash_directory();
@@ -221,8 +234,7 @@ pub fn hash_index(system_path: &str) -> std::result::Result<tantivy::Index, tant
         Err(_) => {
             println!("dir not found");
             Err(tantivy::TantivyError::SystemError(format!(
-                "could not open index directory {}",
-                system_path
+                "could not open hash index directory"
             )))
         }
     }
@@ -313,9 +325,9 @@ pub fn md5_hash(domain: &str) -> String {
 }
 
 pub fn add_hash(domain: &str, hash: u64) {
-    let index = hash_index(&BASE_INDEX_DIR).expect("hash index");
+    let index = hash_index().expect("hash index");
     let searcher = searcher(&index);
-    let mut index_writer = index.writer(50_000_000).expect("writer");
+    let index_writer_read = HASHINDEXWRITER.clone();
     let query_parser = QueryParser::for_index(
         &index,
         vec![index.schema().get_field("domain").expect("domain field")],
@@ -347,7 +359,10 @@ pub fn add_hash(domain: &str, hash: u64) {
             index.schema().get_field("domain").expect("domain field"),
             &domain_hash,
         );
-        index_writer.delete_term(frankenstein_isbn);
+        index_writer_read
+            .read()
+            .unwrap()
+            .delete_term(frankenstein_isbn);
         doc
     } else {
         let mut doc = tantivy::Document::default();
@@ -363,9 +378,10 @@ pub fn add_hash(domain: &str, hash: u64) {
         Facet::from(&new_hash),
     );
 
-    index_writer.add_document(doc);
-    index_writer.commit().expect("commit");
-    index_writer.wait_merging_threads().expect("merge");
+    index_writer_read.read().unwrap().add_document(doc);
+
+    let mut index_writer_wlock = HASHINDEXWRITER.write().unwrap();
+    index_writer_wlock.commit().unwrap();
 }
 pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document {
     let json_string = read_source(url_hash).expect("json update doc is not there");
@@ -457,7 +473,6 @@ pub fn update_cached(
     index_writer: &mut tantivy::IndexWriter,
 ) {
     let doc = update_document(url_hash, index, meta);
-    let json = index.schema().to_json(&doc);
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
     // No longer storing cache
@@ -611,7 +626,7 @@ pub fn just_content_text(document: &document::Document) -> Option<String> {
         }
     }
 }
-
+// used for cleaing the view of an html string
 pub fn view_body(body: &str) -> String {
     let document = document::Document::from(body);
 
@@ -633,12 +648,57 @@ pub fn view_body(body: &str) -> String {
     }
 }
 
-pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
+// Used when figuring out what to do with a url
+#[derive(Debug, Clone)]
+pub enum GetUrlStatus {
+    New(GetterResults),
+    Update(),
+    Skip,
+    Have,
+}
+
+// Given a url what should we do with it? This does retrive the url if we should get it.
+pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> GetUrlStatus {
+    // strip out of the fragment to reduce dup urls
+    let parsed = url::Url::parse(&url).expect("url pase");
+    let url = if let Some(fragment) = parsed.fragment() {
+        url.replace(&format!("#{}", fragment), "")
+    } else {
+        url.to_string()
+    };
+    let url_hash = md5_hash(&url);
+    println!("indexing {} {}", &url_hash, &url);
+    if url_skip(&url) {
+        println!("skip {}", url);
+        GetUrlStatus::Skip
+    } else if let Some(_doc_address) = find_url(&url, &index) {
+        println!("have {}", url);
+        GetUrlStatus::Have
+    } else if source_exists(&url_hash) {
+        println!("cached file {}", url);
+        GetUrlStatus::Update()
+    } else if parsed.domain().is_none() {
+        println!("skipping {}", url);
+        GetUrlStatus::Skip
+    } else {
+        println!("getting {}", url);
+        GetUrlStatus::New(getter.get_url(&url))
+    }
+}
+
+// Document based on GetterResults
+pub fn url_doc(
+    url: &str,
+    index: &Index,
+    meta: UrlMeta,
+    getter: impl IndexGetter,
+    data: Option<GetterResults>,
+) -> Option<tantivy::Document> {
     let url_hash = md5_hash(&url);
     let parsed = url::Url::parse(&url).expect("url pase");
-
     let mut doc = tantivy::Document::default();
-    match getter.get_url(&url) {
+    let results = data.unwrap_or_else(|| getter.get_url(&url));
+    match results {
         GetterResults::Text(body) => {
             doc.add_text(index.schema().get_field("content").expect("content"), &body);
             doc.add_text(
@@ -694,7 +754,7 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
                 content
             } else {
                 // nothing to index
-                return;
+                return None;
             };
             if body.split_whitespace().nth(100).is_some() {
                 let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
@@ -818,15 +878,18 @@ pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexG
         0,
     );
     doc.add_text(index.schema().get_field("id").expect("id"), &url_hash);
-    let json = index.schema().to_json(&doc);
-
-    let mut index_writer = index.writer(50_000_000).expect("writer");
-    index_writer.add_document(doc);
-    index_writer.commit().expect("commit");
-    index_writer.wait_merging_threads().expect("merge");
-    // no longer storing cache
-    //write_source(&url_hash, json);
+    Some(doc)
 }
+
+pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
+    if let Some(doc) = url_doc(url, index, meta, getter, None) {
+        let mut index_writer = index.writer(50_000_000).expect("writer");
+        index_writer.add_document(doc);
+        index_writer.commit().expect("commit");
+        index_writer.wait_merging_threads().expect("merge");
+    }
+}
+
 pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl IndexGetter) {
     if CACHEDCONFIG.indexer_enabled {
         let i;
@@ -861,11 +924,11 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl
             if parsed.domain().is_none() {
                 return;
             }
-            dbg!(&url);
             remote_index(&url, &index, meta, getter)
         };
     }
 }
+
 pub fn source_exists(filename: &str) -> bool {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
@@ -915,7 +978,7 @@ pub fn read_source(url_hash: &str) -> Option<String> {
 }
 
 pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
-    let index = hash_index(BASE_INDEX_DIR.as_str()).expect("hash index");
+    let index = hash_index().expect("hash index");
     let searcher = searcher(&index);
     let query_parser = QueryParser::for_index(
         &index,

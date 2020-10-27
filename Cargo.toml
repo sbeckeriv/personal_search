@@ -7,7 +7,7 @@ edition = "2018"
 [features]
 ml = ["rust-bert"]
 brave = []
-sync = [ "rusqlite", "tempfile" ]
+sync = [ "rusqlite", "tempfile", "rayon" ]
 server = [ "tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 static = ["actix-web-static-files"]
 toolkit = ["termimad", "html2md"]
@@ -27,6 +27,7 @@ rust-bert = { version = "*", optional = true }
 tempfile = { version="*", optional = true}
 termimad = {version="*", optional=true}
 tokio = { version="*", optional = true, features=["rt"] }
+rayon = { version="*", optional=true}
 
 brotli = "*"
 chrono = "*"
