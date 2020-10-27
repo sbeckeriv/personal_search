@@ -8,12 +8,11 @@ use select::document;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::fs;
 use std::fs::File;
-use std::io::Read;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Arc, RwLock};
+use std::{env, fs};
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
@@ -22,15 +21,16 @@ use triple_accel::hamming;
 
 pub mod getter;
 pub mod hash_index;
+pub mod select_patches;
 pub mod system_settings;
 pub use getter::*;
 pub use hash_index::*;
+pub use select_patches::*;
 pub use system_settings::*;
 
 pub struct NoAuthBlockingGetter {}
 impl IndexGetter for NoAuthBlockingGetter {}
 
-use std::env;
 lazy_static::lazy_static! {
     pub static ref SEARCHINDEXWRITER: Arc<RwLock<tantivy::IndexWriter>> = {
         let index = search_index().expect("search index");
@@ -263,8 +263,6 @@ pub fn update_cached(
     let doc = update_document(url_hash, index, meta);
     index_writer.add_document(doc);
     index_writer.commit().expect("commit");
-    // No longer storing cache
-    //write_source(url_hash, json);
 }
 
 #[cfg(not(feature = "ml"))]
@@ -310,129 +308,6 @@ pub fn summary(body: &str) -> Option<String> {
         }
         short_body.truncate(new_len);
         Some(short_body.to_string())
-    }
-}
-
-// from select.rs::text()
-pub fn text_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> String {
-    let mut string = String::new();
-    recur(node, &mut string, ignore_index);
-    return string;
-
-    fn recur(node: &select::node::Node, string: &mut String, ignore_index: &HashSet<usize>) {
-        if ignore_index.get(&node.raw().index).is_none() {
-            if let Some(text) = node.as_text() {
-                string.push_str(text);
-            }
-            for child in node.children() {
-                recur(&child, string, ignore_index)
-            }
-        }
-    }
-}
-
-// from select.rs::text()
-pub fn html_ignore(node: &select::node::Node, ignore_index: &HashSet<usize>) -> String {
-    let mut string = String::new();
-    string.push_str(&format!("<{}>", node.name().unwrap_or("div")));
-    recur(node, &mut string, ignore_index);
-    string.push_str(&format!("</{}>", node.name().unwrap_or("div")));
-    return string;
-
-    fn recur(node: &select::node::Node, string: &mut String, ignore_index: &HashSet<usize>) {
-        if ignore_index.get(&node.raw().index).is_none() {
-            match node.raw().data {
-                select::node::Data::Text(ref text) => string.push_str(text),
-                select::node::Data::Element(ref _name, ref attrs) => {
-                    let attrs = attrs.iter().map(|&(ref name, ref value)| (name, &**value));
-                    let name = node.name().unwrap_or("div");
-                    //if node name a/img keep href
-                    if name == "a" {
-                        string.push_str(&format!("<{} ", name,));
-                        if let Some(href) = attrs
-                            .clone()
-                            .find(|attr| attr.0.local.to_string() == "href")
-                        {
-                            string.push_str(&format!(
-                                "{}='{}' target='_blank'",
-                                href.0.local.to_string(),
-                                href.1
-                            ));
-                        }
-                        string.push('>');
-                    } else if name == "img" {
-                        string.push_str(&format!("<{} ", name,));
-                        if let Some(href) =
-                            attrs.clone().find(|attr| attr.0.local.to_string() == "src")
-                        {
-                            string.push_str(&format!(
-                                "{}='{}' style='max-width:100%'",
-                                href.0.local.to_string(),
-                                href.1
-                            ));
-                        }
-                        string.push('>');
-                    } else {
-                        string.push_str(&format!("<{}>", name));
-                    }
-
-                    for child in node.children() {
-                        recur(&child, string, ignore_index)
-                    }
-
-                    string.push_str(&format!("</{}>", name));
-                }
-                _ => {}
-            }
-        }
-    }
-}
-pub fn just_content_text(document: &document::Document) -> Option<String> {
-    let mut ignore = HashSet::<usize>::new();
-    //remove html tags
-    for name in vec![
-        "script", "noscript", "style", "nav", "footer", "form", "map", "source", "canvas",
-        "object", "param", "picture", "progress", "video", "svg",
-    ]
-    .iter()
-    {
-        for node in document.find(select::predicate::Name(name.clone())) {
-            ignore.insert(node.raw().index);
-        }
-    }
-
-    match document.find(select::predicate::Name("body")).next() {
-        Some(node) => Some(
-            text_ignore(&node, &ignore)
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" "),
-        ),
-        _ => {
-            // nothing to index
-            None
-        }
-    }
-}
-// used for cleaing the view of an html string
-pub fn view_body(body: &str) -> String {
-    let document = document::Document::from(body);
-
-    let mut ignore = HashSet::<usize>::new();
-    //remove html tags
-    for name in vec![
-        "script", "noscript", "style", "nav", "footer", "form", "map", "source", "canvas",
-        "object", "param", "picture", "progress", "video", "svg",
-    ]
-    .iter()
-    {
-        for node in document.find(select::predicate::Name(name.clone())) {
-            ignore.insert(node.raw().index);
-        }
-    }
-    match document.find(select::predicate::Name("body")).next() {
-        Some(node) => html_ignore(&node, &ignore),
-        _ => "".to_string(),
     }
 }
 
@@ -720,46 +595,6 @@ pub fn source_exists(filename: &str) -> bool {
     let source_path = source_path.join(dir);
     source_path.join(format!("{}.jsonc", filename)).exists()
 }
-// used only for dumping the index to json files.
-// You will dump the files with one index and reimport them with a different index.
-pub fn write_source(url_hash: &str, json: String) {
-    let index_path = Path::new(BASE_INDEX_DIR.as_str());
-    let source_path = index_path.join("source");
-    let mut dir = url_hash.clone().to_string();
-    dir.truncate(2);
-    let source_path = source_path.join(dir);
-    if std::fs::create_dir(source_path.clone()).is_ok() {}
-    let output = File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
-    let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
-    writer
-        .write_all(json.as_bytes())
-        .expect("write source file");
-    //output.write_all(json.as_bytes()).expect("write");
-}
-pub fn read_source(url_hash: &str) -> Option<String> {
-    let index_path = Path::new(BASE_INDEX_DIR.as_str());
-    let source_path = index_path.join("source");
-    let mut dir = url_hash.clone().to_string();
-    dir.truncate(2);
-    let source_path = source_path.join(dir);
-    let index = search_index().expect("could not open search index");
-    if let Ok(input) = File::open(source_path.join(format!("{}.jsonc", url_hash))) {
-        let mut reader = brotli::Decompressor::new(
-            input, 4096, // buffer size
-        );
-        let mut json = String::new();
-        reader.read_to_string(&mut json).expect("read source file");
-        Some(json)
-    } else if let Some(doc_address) = find_url(url_hash, &index) {
-        println!("reading from index");
-        let searcher = searcher(&index);
-        let retrieved_doc = searcher.doc(doc_address).expect("doc");
-        Some(index.schema().to_json(&retrieved_doc))
-    } else {
-        None
-    }
-}
-
 pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
     let index = hash_index().expect("hash index");
     let searcher = searcher(&index);
@@ -829,6 +664,48 @@ pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAdd
         Some((_, doc_address)) => Some(*doc_address),
         _ => None,
     }
+}
+
+// checks disk then index
+pub fn read_source(url_hash: &str) -> Option<String> {
+    let index_path = Path::new(BASE_INDEX_DIR.as_str());
+    let source_path = index_path.join("source");
+    let mut dir = url_hash.clone().to_string();
+    dir.truncate(2);
+    let source_path = source_path.join(dir);
+    let index = search_index().expect("could not open search index");
+    if let Ok(input) = File::open(source_path.join(format!("{}.jsonc", url_hash))) {
+        let mut reader = brotli::Decompressor::new(
+            input, 4096, // buffer size
+        );
+        let mut json = String::new();
+        reader.read_to_string(&mut json).expect("read source file");
+        Some(json)
+    } else if let Some(doc_address) = find_url(url_hash, &index) {
+        println!("reading from index");
+        let searcher = searcher(&index);
+        let retrieved_doc = searcher.doc(doc_address).expect("doc");
+        Some(index.schema().to_json(&retrieved_doc))
+    } else {
+        None
+    }
+}
+
+// used only for dumping the index to json files.
+// You will dump the files with one index and reimport them with a different index.
+pub fn write_source(url_hash: &str, json: String) {
+    let index_path = Path::new(BASE_INDEX_DIR.as_str());
+    let source_path = index_path.join("source");
+    let mut dir = url_hash.clone().to_string();
+    dir.truncate(2);
+    let source_path = source_path.join(dir);
+    if std::fs::create_dir(source_path.clone()).is_ok() {}
+    let output = File::create(source_path.join(format!("{}.jsonc", url_hash))).expect("write file");
+    let mut writer = brotli::CompressorWriter::new(output, 4096, 11, 22);
+    writer
+        .write_all(json.as_bytes())
+        .expect("write source file");
+    //output.write_all(json.as_bytes()).expect("write");
 }
 
 pub fn backfill_from_cached() {
