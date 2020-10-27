@@ -1,27 +1,13 @@
-
-
-
-
 #[cfg(feature = "ml")]
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
 
 use serde::{Deserialize, Serialize};
-
-
-
-
 
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
 use std::panic;
 use std::path::Path;
-
-
-
-
-
-
 
 #[derive(Serialize, Debug, Deserialize)]
 pub struct SystemSettings {

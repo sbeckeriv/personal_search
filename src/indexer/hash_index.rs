@@ -1,28 +1,15 @@
-
-
-
-
 #[cfg(feature = "ml")]
 use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
-
-
-
-
-
-
-
 
 use std::io::Read;
 use std::io::Write;
 
 use std::path::Path;
 
-
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
-use tantivy::{Index};
-
+use tantivy::Index;
 
 fn hash_directory(
 ) -> Result<tantivy::directory::MmapDirectory, tantivy::directory::error::OpenDirectoryError> {
@@ -46,7 +33,9 @@ pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError
         Ok(dir) => Index::open_or_create(dir, schema),
         Err(_) => {
             println!("dir not found");
-            Err(tantivy::TantivyError::SystemError("could not open hash index directory".to_string()))
+            Err(tantivy::TantivyError::SystemError(
+                "could not open hash index directory".to_string(),
+            ))
         }
     }
 }
