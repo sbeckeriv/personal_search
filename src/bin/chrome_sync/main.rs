@@ -238,6 +238,15 @@ fn main() -> tantivy::Result<()> {
                             }
                             _ => {}
                         }
+                        let mut file = OpenOptions::new()
+                            .truncate(true)
+                            .write(true)
+                            .create(true)
+                            .open(&path_name)
+                            .expect("cache file");
+
+                        file.write_all(format!("last_id = {}", date).as_bytes())
+                            .expect("chrome cache");
                     }
                 })
                 .collect::<Vec<_>>();
