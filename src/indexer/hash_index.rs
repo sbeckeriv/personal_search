@@ -1,11 +1,4 @@
-#[cfg(feature = "ml")]
-use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
-
-use std::io::Read;
-use std::io::Write;
-
 use std::path::Path;
-
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;

@@ -26,9 +26,9 @@ pub trait IndexGetter {
                     GetterResults::Html(res.into_string().unwrap_or_else(|_| "".to_string()))
                 } else if lower.contains("text") && !lower.contains("javascript") {
                     GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
-                } else if lower.contains("pdf") {
-                    //GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
-                    GetterResults::Nothing
+                //                } else if lower.contains("pdf") {
+                //GetterResults::Text(res.into_string().unwrap_or_else(|_| "".to_string()))
+                //                   GetterResults::Nothing
                 } else {
                     GetterResults::Nothing
                 }

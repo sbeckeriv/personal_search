@@ -590,7 +590,7 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl
 pub fn source_exists(filename: &str) -> bool {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
-    let mut dir = filename.clone().to_string();
+    let mut dir = filename.to_string();
     dir.truncate(2);
     let source_path = source_path.join(dir);
     source_path.join(format!("{}.jsonc", filename)).exists()
@@ -670,7 +670,7 @@ pub fn find_url(url: &str, index: &Index) -> std::option::Option<tantivy::DocAdd
 pub fn read_source(url_hash: &str) -> Option<String> {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
-    let mut dir = url_hash.clone().to_string();
+    let mut dir = url_hash.to_string();
     dir.truncate(2);
     let source_path = source_path.join(dir);
     let index = search_index().expect("could not open search index");
@@ -696,7 +696,7 @@ pub fn read_source(url_hash: &str) -> Option<String> {
 pub fn write_source(url_hash: &str, json: String) {
     let index_path = Path::new(BASE_INDEX_DIR.as_str());
     let source_path = index_path.join("source");
-    let mut dir = url_hash.clone().to_string();
+    let mut dir = url_hash.to_string();
     dir.truncate(2);
     let source_path = source_path.join(dir);
     if std::fs::create_dir(source_path.clone()).is_ok() {}
@@ -705,7 +705,6 @@ pub fn write_source(url_hash: &str, json: String) {
     writer
         .write_all(json.as_bytes())
         .expect("write source file");
-    //output.write_all(json.as_bytes()).expect("write");
 }
 
 pub fn backfill_from_cached() {

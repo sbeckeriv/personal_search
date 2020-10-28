@@ -84,7 +84,7 @@ pub fn just_content_text(document: &document::Document) -> Option<String> {
     ]
     .iter()
     {
-        for node in document.find(select::predicate::Name(name.clone())) {
+        for node in document.find(select::predicate::Name((*name).clone())) {
             ignore.insert(node.raw().index);
         }
     }
@@ -114,7 +114,7 @@ pub fn view_body(body: &str) -> String {
     ]
     .iter()
     {
-        for node in document.find(select::predicate::Name(name.clone())) {
+        for node in document.find(select::predicate::Name((*name).clone())) {
             ignore.insert(node.raw().index);
         }
     }

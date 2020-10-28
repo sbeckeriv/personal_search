@@ -200,35 +200,32 @@ fn main() -> tantivy::Result<()> {
                     let _time = Utc::now().timestamp();
                     for data in chunks.iter() {
                         let place = records_data.get(&data.0).unwrap().last().unwrap();
-                        match &data.1 {
-                            indexer::GetUrlStatus::New(web_data) => {
-                                //https://gist.github.com/dropmeaword/9372cbeb29e8390521c2
-                                let date = place
-                                    .last_visit_date
-                                    .map(|num| Utc.timestamp(num / 1000000 - 11644473600, 0));
-                                let meta = indexer::UrlMeta {
-                                    url: Some(place.url.clone()),
-                                    title: place.title.clone(),
-                                    bookmarked: None,
-                                    last_visit: date,
-                                    access_count: Some(place.visit_count),
-                                    pinned: None,
-                                    tags_add: None,
-                                    tags_remove: None,
-                                    hidden: None,
-                                };
-                                if let Some(doc) = indexer::url_doc(
-                                    &place.url.clone(),
-                                    &index,
-                                    meta,
-                                    indexer::NoAuthBlockingGetter {},
-                                    Some(web_data.clone()),
-                                ) {
-                                    let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
-                                    index_writer_read.read().unwrap().add_document(doc);
-                                }
+                        if let indexer::GetUrlStatus::New(web_data) = &data.1 {
+                            //https://gist.github.com/dropmeaword/9372cbeb29e8390521c2
+                            let date = place
+                                .last_visit_date
+                                .map(|num| Utc.timestamp(num / 1000000 - 11644473600, 0));
+                            let meta = indexer::UrlMeta {
+                                url: Some(place.url.clone()),
+                                title: place.title.clone(),
+                                bookmarked: None,
+                                last_visit: date,
+                                access_count: Some(place.visit_count),
+                                pinned: None,
+                                tags_add: None,
+                                tags_remove: None,
+                                hidden: None,
+                            };
+                            if let Some(doc) = indexer::url_doc(
+                                &place.url.clone(),
+                                &index,
+                                meta,
+                                indexer::NoAuthBlockingGetter {},
+                                Some(web_data.clone()),
+                            ) {
+                                let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
+                                index_writer_read.read().unwrap().add_document(doc);
                             }
-                            _ => {}
                         }
                         let mut file = OpenOptions::new()
                             .truncate(true)

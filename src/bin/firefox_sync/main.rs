@@ -215,34 +215,31 @@ fn main() -> tantivy::Result<()> {
                         dbg!(&data.0);
                         dbg!(time);
                         let place = records_data.get(&data.0).unwrap().last().unwrap();
-                        match &data.1 {
-                            indexer::GetUrlStatus::New(web_data) => {
-                                let meta = indexer::UrlMeta {
-                                    url: Some(place.url.clone()),
-                                    title: place.title.clone(),
-                                    bookmarked: Some(place.bookmarked),
-                                    last_visit: place
-                                        .last_visit_date
-                                        .map(|num| Utc.timestamp(num / 1000000, 0)),
-                                    access_count: Some(place.visit_count),
-                                    pinned: None,
-                                    tags_add: None,
-                                    tags_remove: None,
-                                    hidden: Some(0),
-                                };
+                        if let indexer::GetUrlStatus::New(web_data) = &data.1 {
+                            let meta = indexer::UrlMeta {
+                                url: Some(place.url.clone()),
+                                title: place.title.clone(),
+                                bookmarked: Some(place.bookmarked),
+                                last_visit: place
+                                    .last_visit_date
+                                    .map(|num| Utc.timestamp(num / 1000000, 0)),
+                                access_count: Some(place.visit_count),
+                                pinned: None,
+                                tags_add: None,
+                                tags_remove: None,
+                                hidden: Some(0),
+                            };
 
-                                if let Some(doc) = indexer::url_doc(
-                                    &place.url.clone(),
-                                    &index,
-                                    meta,
-                                    indexer::NoAuthBlockingGetter {},
-                                    Some(web_data.clone()),
-                                ) {
-                                    let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
-                                    index_writer_read.read().unwrap().add_document(doc);
-                                }
+                            if let Some(doc) = indexer::url_doc(
+                                &place.url.clone(),
+                                &index,
+                                meta,
+                                indexer::NoAuthBlockingGetter {},
+                                Some(web_data.clone()),
+                            ) {
+                                let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
+                                index_writer_read.read().unwrap().add_document(doc);
                             }
-                            _ => {}
                         }
                         // index
                     }

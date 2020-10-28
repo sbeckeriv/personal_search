@@ -138,7 +138,7 @@ fn movefiles() {
 
             let filename = dir_name.split('/').last().unwrap();
             dbg!(filename);
-            let mut new_dir_name = filename.clone().to_string();
+            let mut new_dir_name = filename.to_string();
             new_dir_name.truncate(2);
             dbg!(&new_dir_name);
             dbg!(base.join(new_dir_name.clone()));
@@ -174,27 +174,20 @@ fn main() -> tantivy::Result<()> {
                     let json: Result<serde_json::Value, _> = serde_json::from_str(&json_string);
                     if let Ok(json) = json {
                         if let Some(content) = json.get("content_raw") {
-                            match content {
-                                serde_json::Value::Array(content) => {
-                                    let content =
-                                        indexer::view_body(content[0].as_str().unwrap_or(""));
+                            if let serde_json::Value::Array(content) = content {
+                                let content = indexer::view_body(content[0].as_str().unwrap_or(""));
+                                let markdown = html2md::parse_html(&content);
+                                termimad::print_inline(&markdown);
+                            }
+                        } else if let Some(content) = json.get("content") {
+                            if let serde_json::Value::Array(content) = content {
+                                let content = content[0].as_str().unwrap_or("");
+                                if !content.contains("<html>") {
+                                    println!("{}", content);
+                                } else {
                                     let markdown = html2md::parse_html(&content);
                                     termimad::print_inline(&markdown);
                                 }
-                                _ => {}
-                            }
-                        } else if let Some(content) = json.get("content") {
-                            match content {
-                                serde_json::Value::Array(content) => {
-                                    let content = content[0].as_str().unwrap_or("");
-                                    if !content.contains("<html>") {
-                                        println!("{}", content);
-                                    } else {
-                                        let markdown = html2md::parse_html(&content);
-                                        termimad::print_inline(&markdown);
-                                    }
-                                }
-                                _ => {}
                             }
                         } else {
                         }
@@ -203,7 +196,7 @@ fn main() -> tantivy::Result<()> {
             } else if let Some(url) = opt.json_source {
                 println!(
                     "{}",
-                    indexer::read_source(&url).unwrap_or("not found".to_string())
+                    indexer::read_source(&url).unwrap_or_else(|| "not found".to_string())
                 )
             } else if let Some(url) = opt.import_url {
                 indexer::index_url(
