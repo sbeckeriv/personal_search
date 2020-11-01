@@ -40,7 +40,8 @@ select = "*"
 serde = { version = "1", features = ["derive"]}
 serde_json =  { version = "1" }
 structopt = "*"
-tantivy = "0.13.2"
+tantivy = {git="https://github.com/tantivy-search/tantivy",version = "0.14.0-dev"}
+tantivy-query-grammar = "*" 
 toml = "*"
 triple_accel =  { version = "*" }
 ureq = "*"

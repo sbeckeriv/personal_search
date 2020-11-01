@@ -52,7 +52,7 @@ fn facets(index: tantivy::Index, field: &str, facet: &str) {
     let facets: Vec<(&Facet, u64)> = facet_counts.get(facet).collect();
     dbg!(facets);
 }
-fn search(query: String, index: tantivy::Index, _debug: bool) {
+fn search(query: String, index: tantivy::Index, debug: bool) {
     let searcher = indexer::searcher(&index);
     let default_fields: Vec<tantivy::schema::Field> = index
         .schema()
@@ -65,13 +65,31 @@ fn search(query: String, index: tantivy::Index, _debug: bool) {
         })
         .map(|(field, _)| field)
         .collect();
+    let top_docs = if query.chars().any(|c| {
+        c.to_string() == "*"
+            || c.to_string() == "\\"
+            || c.to_string() == "["
+            || c.to_string() == "]"
+            || c.to_string() == "+"
+            || c.to_string() == "."
+    }) {
+        let query = query.replace("\\\\", "\\");
+        println!("{}", query);
+        let title = index.schema().get_field("content").expect("content");
+        let query = tantivy::query::RegexQuery::from_pattern(&query, title).expect("regex");
+        searcher
+            .search(&query, &TopDocs::with_limit(10))
+            .expect("serach")
+    } else {
+        let query_parser =
+            QueryParser::new(index.schema(), default_fields, index.tokenizers().clone());
 
-    let query_parser = QueryParser::new(index.schema(), default_fields, index.tokenizers().clone());
+        let query = query_parser.parse_query(&query).expect("query parse");
 
-    let query = query_parser.parse_query(&query).expect("query parse");
-    let top_docs = searcher
-        .search(&query, &TopDocs::with_limit(10))
-        .expect("serach");
+        searcher
+            .search(&query, &TopDocs::with_limit(10))
+            .expect("serach")
+    };
     let schema = index.schema();
     for (score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address).expect("doc");
@@ -106,15 +124,17 @@ fn search(query: String, index: tantivy::Index, _debug: bool) {
             .map(|r| r.first().unwrap().value().i64_value())
             .unwrap_or(0);
         println!(
-            "{score}: {title} - {url}\n{summary}\n{pinned}",
+            "{score}: {title} - {url}\n{summary}\npinned:{pinned}",
             score = score,
             title = title,
             url = url,
             summary = summary,
             pinned = pinned
         );
-        let json = index.schema().to_json(&retrieved_doc);
-        println!("{}:\n{}", score, json);
+        if debug {
+            let json = index.schema().to_json(&retrieved_doc);
+            println!("{}:\n{}", score, json);
+        }
     }
 }
 
