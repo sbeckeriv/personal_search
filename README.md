@@ -9,7 +9,9 @@ Automatic processors (firefox: Read the sqlite db)
 Provide a home page
 Provide search bar widget
 
-![search page](https://raw.githubusercontent.com/sbeckeriv/personal_search/master/example.png)
+Video https://www.youtube.com/watch?v=5g_mXXFwQlg
+
+![search page](https://raw.githubusercontent.com/sbeckeriv/personal_search/master/images/example.png)
 
 # Status
 
