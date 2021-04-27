@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
+use termimad;
 
 mod indexer;
 
