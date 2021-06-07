@@ -152,22 +152,22 @@ fn doc_to_json(retrieved_doc: &tantivy::Document, schema: &tantivy::schema::Sche
         bookmarked: m
             .get("bookmarked")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-            .unwrap()
+            .flatten()
             .unwrap_or(0),
         pinned: m
             .get("pinned")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-            .unwrap()
+            .flatten()
             .unwrap_or(0),
         duplicate: m
             .get("duplicate")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-            .unwrap()
+            .flatten()
             .unwrap_or(0),
         accessed_count: m
             .get("accessed_count")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
-            .unwrap()
+            .flatten()
             .unwrap_or(0),
     }
 }
