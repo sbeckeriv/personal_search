@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use termimad;
+//use termimad;
 
 mod indexer;
 
@@ -105,6 +105,7 @@ fn search(query: String, index: tantivy::Index, _debug: bool) {
         let pinned = m
             .get("pinned")
             .map(|r| r.first().unwrap().value().i64_value())
+            .unwrap()
             .unwrap_or(0);
         println!(
             "{score}: {title} - {url}\n{summary}\n{pinned}",
@@ -177,8 +178,9 @@ fn main() -> tantivy::Result<()> {
                         if let Some(content) = json.get("content_raw") {
                             if let serde_json::Value::Array(content) = content {
                                 let content = indexer::view_body(content[0].as_str().unwrap_or(""));
-                                let markdown = html2md::parse_html(&content);
-                                termimad::print_inline(&markdown);
+                                dbg!(content);
+                                //let markdown = html2md::parse_html(&content);
+                                //termimad::print_inline(&markdown);
                             }
                         } else if let Some(content) = json.get("content") {
                             if let serde_json::Value::Array(content) = content {
@@ -186,8 +188,9 @@ fn main() -> tantivy::Result<()> {
                                 if !content.contains("<html>") {
                                     println!("{}", content);
                                 } else {
-                                    let markdown = html2md::parse_html(&content);
-                                    termimad::print_inline(&markdown);
+                                    dbg!(content);
+                                    //let markdown = html2md::parse_html(&content);
+                                    //termimad::print_inline(&markdown);
                                 }
                             }
                         } else {

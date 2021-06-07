@@ -19,7 +19,7 @@ pub fn hash_index() -> std::result::Result<tantivy::Index, tantivy::TantivyError
 
     let mut schema_builder = Schema::builder();
     schema_builder.add_text_field("domain", TEXT | STORED);
-    schema_builder.add_facet_field("hashes");
+    schema_builder.add_facet_field("hashes", STORED | INDEXED);
 
     let schema = schema_builder.build();
     match directory {
@@ -54,10 +54,7 @@ pub fn add_hash(domain: &str, hash: u64) {
     let mut doc = if let Some(result) = top_docs.first() {
         let doc = searcher.doc(result.1).expect("doc");
         // dont dup the facet
-        for s in doc
-            .get_all(index.schema().get_field("hashes").expect("f"))
-            .iter()
-        {
+        for s in doc.get_all(index.schema().get_field("hashes").expect("f")) {
             if let tantivy::schema::Value::Facet(facet) = s {
                 if facet.to_path_string() == new_hash {
                     return;

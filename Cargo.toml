@@ -13,6 +13,7 @@ static = ["actix-web-static-files"]
 toolkit = ["termimad", "html2md"]
 
 [dependencies]
+rand = '*'
 actix-cors =  { version = "0.4.1", optional = true }
 actix-files =  { version = "0.4.0", optional = true }
 actix-service = { version =  "1", optional = true }
@@ -40,7 +41,7 @@ select = "*"
 serde = { version = "1", features = ["derive"]}
 serde_json =  { version = "1" }
 structopt = "*"
-tantivy = "0.13.2"
+tantivy = "0.15"
 toml = "*"
 triple_accel =  { version = "*" }
 ureq = "*"
