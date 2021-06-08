@@ -18,6 +18,8 @@ pub trait IndexGetter {
             .set("X-Source", "https://github.com/sbeckeriv/personal_search")
             .timeout(Duration::new(10, 0))
             .call();
+
+        dbg!(&url, &res.status());
         if res.status() < 300 {
             if let Some(lower) = res.header("Content-Type") {
                 dbg!(&lower);

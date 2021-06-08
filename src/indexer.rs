@@ -2,8 +2,6 @@ use chrono::prelude::*;
 use glob::glob;
 use probabilistic_collections::similarity::{ShingleIterator, SimHash};
 use probabilistic_collections::SipHasherBuilder;
-#[cfg(feature = "ml")]
-use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
 use select::document;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -110,7 +108,7 @@ pub fn search_index() -> std::result::Result<tantivy::Index, tantivy::TantivyErr
     schema_builder.add_date_field("last_accessed_at", STORED | INDEXED);
     schema_builder.add_i64_field("added_at_i", STORED | INDEXED);
     schema_builder.add_i64_field("last_accessed_at_i", STORED | INDEXED);
-    schema_builder.add_facet_field("tags");
+    schema_builder.add_facet_field("tags", STORED | INDEXED);
 
     let schema = schema_builder.build();
     match directory {
@@ -174,7 +172,7 @@ pub fn md5_hash(domain: &str) -> String {
 pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document {
     let json_string = read_source(url_hash).expect("json update doc is not there");
     let mut json: Value = serde_json::from_str(&json_string).expect("cached json parse fail!");
-    dbg!(&json);
+    //dbg!(&json);
     for keyword in meta.tags_add.unwrap_or_default() {
         let value = serde_json::Value::String(keyword.clone());
         if let Some(words) = json.get_mut("tags") {
@@ -213,7 +211,7 @@ pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document
     // reading from the index vs source we need to reparse the html or text
     if json.get("content").is_none() {
         let body = json["content_raw"][0].as_str().unwrap_or("");
-        dbg!(&body);
+        //dbg!(&body);
         let content = if body.contains("<body>") {
             let document = document::Document::from(body);
             just_content_text(&document).expect("jst_content_text to work")
@@ -236,7 +234,6 @@ pub fn update_document(url_hash: &str, index: &Index, meta: UrlMeta) -> Document
     }
 
     if json.get("hidden").is_none() {
-        println!("hidden 0");
         json["hidden"] = json!(vec![0]);
     }
 
@@ -265,7 +262,6 @@ pub fn update_cached(
     index_writer.commit().expect("commit");
 }
 
-#[cfg(not(feature = "ml"))]
 pub fn summary(body: &str) -> Option<String> {
     let mut short_body = body.to_string();
     let mut new_len = 150;
@@ -275,40 +271,6 @@ pub fn summary(body: &str) -> Option<String> {
     }
     short_body.truncate(new_len);
     Some(short_body)
-}
-
-#[cfg(feature = "ml")]
-pub fn summary(body: &str) -> Option<String> {
-    let config = SummarizationConfig::default();
-    if config.device.is_cuda() {
-        let result = panic::catch_unwind(|| {
-            let summarization_model =
-                SummarizationModel::new(config).expect("summarization_model fail");
-            let input = [body];
-            summarization_model.summarize(&input).join(" ")
-        });
-
-        match result {
-            Ok(results) => {
-                let results = results.replace("Please email your photos to jennifer.smith@mailonline.co.uk. Send us photos of your family and pets. Visit CNN.com/sport for more photos and videos of family and friends in the U.S.", "");
-                let results = results.trim();
-                Some(results.to_string())
-            }
-            _ => {
-                println!("sum error");
-                None
-            }
-        }
-    } else {
-        let mut short_body = body.to_string();
-        let mut new_len = 150;
-        // prevent panics by finding a safe spot to slice
-        while !short_body.is_char_boundary(new_len) {
-            new_len += 1;
-        }
-        short_body.truncate(new_len);
-        Some(short_body.to_string())
-    }
 }
 
 // Used when figuring out what to do with a url
@@ -330,21 +292,21 @@ pub fn get_url(url: &str, index: &Index, getter: impl IndexGetter) -> GetUrlStat
         url.to_string()
     };
     let url_hash = md5_hash(&url);
-    println!("indexing {} {}", &url_hash, &url);
+    //println!("indexing {} {}", &url_hash, &url);
     if url_skip(&url) {
-        println!("skip {}", url);
+        //println!("skip {}", url);
         GetUrlStatus::Skip
     } else if let Some(_doc_address) = find_url(&url, &index) {
-        println!("have {}", url);
+        //println!("have {}", url);
         GetUrlStatus::Have
     } else if source_exists(&url_hash) {
-        println!("cached file {}", url);
+        //println!("cached file {}", url);
         GetUrlStatus::Update()
     } else if parsed.domain().is_none() {
-        println!("skipping {}", url);
+        //println!("skipping {}", url);
         GetUrlStatus::Skip
     } else {
-        println!("getting {}", url);
+        //println!("getting {}", url);
         GetUrlStatus::New(getter.get_url(&url))
     }
 }
@@ -385,7 +347,7 @@ pub fn url_doc(
         }
 
         GetterResults::Html(body) => {
-            println!("processing {}", &url);
+            //println!("processing {}", &url);
 
             doc.add_text(
                 index
@@ -396,11 +358,14 @@ pub fn url_doc(
             );
             let document = document::Document::from(body.as_str());
 
+            //println!("document {}", &url);
+
             let title = match document.find(select::predicate::Name("title")).next() {
                 Some(node) => node.text(),
                 _ => meta.title.unwrap_or_else(|| "".to_string()),
             };
 
+            //println!("title {}", &url);
             let meta_description = document
                 .find(select::predicate::Name("meta"))
                 .filter(|node| node.attr("name").unwrap_or("") == "description")
@@ -413,12 +378,21 @@ pub fn url_doc(
                 _ => &empty,
             };
 
+            //println!("description {}", &url);
+
             let body = just_content_text(&document)?;
+
+            //println!("just content{}", &url);
+
             if body.split_whitespace().nth(100).is_some() {
                 let sim_hash = SimHash::with_hasher(SipHasherBuilder::from_seed(0, 0));
                 let content_hash =
                     sim_hash.get_sim_hash(ShingleIterator::new(2, body.split(' ').collect()));
+
+                //println!("hashed{}", &url);
                 let dup = duplicate(&parsed.domain().unwrap().to_string(), &content_hash);
+
+                //println!("dup{}", &url);
 
                 doc.add_i64(
                     index
@@ -427,7 +401,10 @@ pub fn url_doc(
                         .expect("content_hash"),
                     content_hash.try_into().unwrap_or(0),
                 );
+
                 add_hash(&parsed.domain().expect("domain"), content_hash);
+
+                //println!("added hash {}", &url);
 
                 if !dup {
                     doc.add_text(index.schema().get_field("content").expect("content"), &body);
@@ -445,6 +422,7 @@ pub fn url_doc(
                 doc.add_text(index.schema().get_field("content").expect("content"), &body);
             }
 
+            //println!("added desciption{}", &url);
             doc.add_text(
                 index
                     .schema()
@@ -468,6 +446,7 @@ pub fn url_doc(
                 .map(str::to_string)
                 .collect::<Vec<String>>();
 
+            //println!("keywords{}", &url);
             for keyword in keywords {
                 doc.add_facet(
                     index.schema().get_field("tags").expect("tags"),
@@ -536,15 +515,23 @@ pub fn url_doc(
         0,
     );
     doc.add_text(index.schema().get_field("id").expect("id"), &url_hash);
+
     Some(doc)
 }
 
 pub fn remote_index(url: &str, index: &Index, meta: UrlMeta, getter: impl IndexGetter) {
     if let Some(doc) = url_doc(url, index, meta, getter, None) {
+        println!("adding doc");
         let mut index_writer = index.writer(50_000_000).expect("writer");
         index_writer.add_document(doc);
+
+        println!("commit doc");
         index_writer.commit().expect("commit");
+
+        println!("merge doc");
         index_writer.wait_merging_threads().expect("merge");
+
+        println!("merge done doc");
     }
 }
 
@@ -567,13 +554,13 @@ pub fn index_url(url: String, meta: UrlMeta, index: Option<&Index>, getter: impl
             url
         };
         let url_hash = md5_hash(&url);
-        println!("indexing {} {}", &url_hash, &url);
+        //println!("indexing {} {}", &url_hash, &url);
         if url_skip(&url) {
-            println!("skip {}", url);
+            //println!("skip {}", url);
         } else if let Some(_doc_address) = find_url(&url, &index) {
-            println!("have {}", url);
+            //println!("have {}", url);
         } else if source_exists(&url_hash) {
-            println!("cached file {}", url);
+            //println!("cached file {}", url);
             let mut index_writer = index.writer(50_000_000).expect("writer");
             update_cached(&url_hash, &index, meta, &mut index_writer);
             index_writer.wait_merging_threads().expect("merge");
@@ -617,7 +604,6 @@ pub fn duplicate(domain: &str, content_hash: &u64) -> bool {
             .doc(result.1)
             .expect("doc")
             .get_all(index.schema().get_field("hashes").expect("f"))
-            .iter()
         {
             if let tantivy::schema::Value::Facet(facet) = s {
                 let hash_number = facet
@@ -682,7 +668,7 @@ pub fn read_source(url_hash: &str) -> Option<String> {
         reader.read_to_string(&mut json).expect("read source file");
         Some(json)
     } else if let Some(doc_address) = find_url(url_hash, &index) {
-        println!("reading from index");
+        //println!("reading from index");
         let searcher = searcher(&index);
         let retrieved_doc = searcher.doc(doc_address).expect("doc");
         Some(index.schema().to_json(&retrieved_doc))

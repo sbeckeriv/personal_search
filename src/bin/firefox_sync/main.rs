@@ -2,6 +2,7 @@ extern crate probabilistic_collections;
 use chrono::{TimeZone, Utc};
 use glob::glob;
 use personal_search::indexer;
+use rand;
 use rayon::prelude::*;
 use rusqlite::{params, Connection, Result};
 use std::collections::HashMap;
@@ -197,6 +198,7 @@ fn main() -> tantivy::Result<()> {
                     .push(record.clone());
             }
             let index = indexer::search_index().unwrap();
+            dbg!(record_list.len());
             let _results = &record_list
                 .par_iter()
                 //.iter()
@@ -210,10 +212,11 @@ fn main() -> tantivy::Result<()> {
                 //.collect::<Vec<_>>() // for iter testing
                 .chunks(20)
                 .map(|chunks| {
+                    let rand: i64 = rand::random();
                     let time = Utc::now().timestamp();
+                    //println!("\n{} log start {}", rand, time);
+                    //println!("{:?}, {}", chunks, time);
                     for data in chunks.iter() {
-                        dbg!(&data.0);
-                        dbg!(time);
                         let place = records_data.get(&data.0).unwrap().last().unwrap();
                         if let indexer::GetUrlStatus::New(web_data) = &data.1 {
                             let meta = indexer::UrlMeta {
@@ -243,11 +246,19 @@ fn main() -> tantivy::Result<()> {
                         }
                         // index
                     }
+                    //println!("\n{} log end {}", rand, time);
+                    //println!("done chunks {}", time);
                     let mut index_writer_wlock = indexer::SEARCHINDEXWRITER.write().unwrap();
+
+                    //println!("done {:?} {}", chunks, time);
+                    //println!("commit {}", time);
                     index_writer_wlock.commit().expect("commit");
+
+                    //println!("done commit {}", time);
                 })
                 .collect::<Vec<_>>();
 
+            println!("collect commit");
             let mut file = OpenOptions::new()
                 .truncate(true)
                 .write(true)
@@ -255,8 +266,11 @@ fn main() -> tantivy::Result<()> {
                 .open(&path_name)
                 .expect("cache file");
 
+            println!("cache file");
             file.write_all(format!("last_id = {}", date).as_bytes())
                 .expect("ff cache");
+
+            println!("write file");
         }
         _ => {
             println!("bad");

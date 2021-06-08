@@ -92,7 +92,6 @@ fn doc_to_json(retrieved_doc: &tantivy::Document, schema: &tantivy::schema::Sche
 
     let tags = retrieved_doc
         .get_all(schema.get_field("tags").expect("tags"))
-        .iter()
         .map(|s| {
             if let tantivy::schema::Value::Facet(facet) = s {
                 facet.to_path_string()
@@ -153,18 +152,22 @@ fn doc_to_json(retrieved_doc: &tantivy::Document, schema: &tantivy::schema::Sche
         bookmarked: m
             .get("bookmarked")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+            .flatten()
             .unwrap_or(0),
         pinned: m
             .get("pinned")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+            .flatten()
             .unwrap_or(0),
         duplicate: m
             .get("duplicate")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+            .flatten()
             .unwrap_or(0),
         accessed_count: m
             .get("accessed_count")
             .map(|t| t.get(0).map(|f| f.i64_value()).unwrap())
+            .flatten()
             .unwrap_or(0),
     }
 }
