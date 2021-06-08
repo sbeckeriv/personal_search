@@ -65,6 +65,7 @@ pub fn add_hash(domain: &str, hash: u64) {
             index.schema().get_field("domain").expect("domain field"),
             &domain_hash,
         );
+        dbg!(&frankenstein_isbn);
         index_writer_read
             .read()
             .unwrap()
@@ -83,9 +84,10 @@ pub fn add_hash(domain: &str, hash: u64) {
         index.schema().get_field("hashes").expect("hash"),
         Facet::from(&new_hash),
     );
-
+    println!("hash add");
     index_writer_read.read().unwrap().add_document(doc);
 
     let mut index_writer_wlock = super::HASHINDEXWRITER.write().unwrap();
     index_writer_wlock.commit().unwrap();
+    println!("hash add commit");
 }
