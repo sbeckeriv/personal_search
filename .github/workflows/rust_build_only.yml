@@ -8,6 +8,30 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+
+  versioncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1.0.1
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: beta
+          default: true
+          override: true
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev && cargo install --force cargo-strip
+      - name: Remove cargo lock
+        run: rm Cargo.lock
+      - name: Build
+        run: cargo build --bin chrome_sync --release --features "brave sync"
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:
@@ -35,8 +59,8 @@ jobs:
           && sudo apt-get install -y \
           libdbus-1-dev && cargo install --force cargo-strip
       - name: Build
-        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync target/release/brave_sync && cargo build --release --features "server static sync toolkit" &&   cargo strip
- 
+        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync target/release/brave_sync && cargo build --release --features "server static sync toolkit niced" &&   cargo strip
+
 
   build-mac:
     runs-on: macos-latest
@@ -55,8 +79,8 @@ jobs:
       - name: Install system dependencies
         run: cargo install --force cargo-strip
       - name: Build
-        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync target/release/brave_sync && cargo build --release --features "server static sync toolkit" &&   cargo strip
-   
+        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync target/release/brave_sync && cargo build --release --features "server static sync toolkit niced" &&   cargo strip
+
   build-windows:
     runs-on: windows-latest
     steps:
@@ -74,4 +98,4 @@ jobs:
       - name: Install system dependencies
         run: cargo install --force cargo-strip
       - name: Build
-        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync.exe target/release/brave_sync.exe && cargo build --release --features "server static sync toolkit" &&   cargo strip
+        run: cargo build --bin chrome_sync --release --features "brave sync" && mv target/release/chrome_sync.exe target/release/brave_sync.exe && cargo build --release --features "server static sync toolkit niced" &&   cargo strip

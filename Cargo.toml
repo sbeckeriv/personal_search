@@ -7,6 +7,7 @@ edition = "2018"
 [features]
 ml = ["rust-bert"]
 brave = []
+niced = ["iced", "iced_native", "webbrowser"]
 sync = [ "rusqlite", "tempfile", "rayon" ]
 server = [ "tokio", "actix-web","actix-cors", "actix-files", "actix-service", "futures", "env_logger", "json"]
 static = ["actix-web-static-files"]
@@ -44,8 +45,18 @@ structopt = "*"
 tantivy = "0.15"
 toml = "*"
 triple_accel =  { version = "*" }
-ureq = "*"
+ureq = "2.1.1"
 url = "*"
+
+iced = {version = "0.3", optional=true}
+iced_native = {version="*", optional=true}
+webbrowser = {version="*", optional=true}
+
+[[bin]]
+name = "niced"
+path = "src/bin/niced/main.rs"
+features = ["sync", "niced", "server" ]
+default = ["sync", "niced", "server" ]
 
 [[bin]]
 name = "chrome_sync"
