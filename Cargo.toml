@@ -45,7 +45,7 @@ structopt = "*"
 tantivy = "0.15"
 toml = "*"
 triple_accel =  { version = "*" }
-ureq = "*"
+ureq = "2.1.1"
 url = "*"
 
 iced = {version = "0.3", optional=true}
