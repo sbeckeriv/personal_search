@@ -7,8 +7,8 @@ pub enum GetterResults {
 }
 pub trait IndexGetter {
     fn get_url(&self, url: &str) -> GetterResults {
-        dbg!(&url);
-        let mut agent = ureq::agent();
+        let agent = ureq::agent();
+
         let res = agent
             .get(url)
             .set(
@@ -16,14 +16,12 @@ pub trait IndexGetter {
                 "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
             )
             .set("X-Source", "https://github.com/sbeckeriv/personal_search")
-            .timeout(Duration::new(10, 0))
+            .timeout(Duration::new(3, 0))
             .call();
         match res {
             Ok(res) => {
-                dbg!(&url, &res.status());
                 if res.status() < 300 {
                     if let Some(lower) = res.header("Content-Type") {
-                        dbg!(&lower);
                         let lower = lower.to_lowercase();
                         if lower == "" || lower.contains("html") {
                             GetterResults::Html(

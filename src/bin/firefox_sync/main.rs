@@ -203,62 +203,63 @@ fn main() -> tantivy::Result<()> {
                 .par_iter()
                 //.iter()
                 .map(|record| {
-                    dbg!(&record.url);
                     (
                         record.url.clone(),
                         indexer::get_url(&record.url, &index, indexer::NoAuthBlockingGetter {}),
                     )
                 })
-                //.collect::<Vec<_>>() // for iter testing
+                .map(|data| {
+                    let place = records_data.get(&data.0).unwrap().last().unwrap();
+                    if let indexer::GetUrlStatus::New(web_data) = &data.1 {
+                        let meta = indexer::UrlMeta {
+                            url: Some(place.url.clone()),
+                            title: place.title.clone(),
+                            bookmarked: Some(place.bookmarked),
+                            last_visit: place
+                                .last_visit_date
+                                .map(|num| Utc.timestamp(num / 1000000, 0)),
+                            access_count: Some(place.visit_count),
+                            pinned: None,
+                            tags_add: None,
+                            tags_remove: None,
+                            hidden: Some(0),
+                        };
+                        indexer::url_doc(
+                            &place.url.clone(),
+                            &index,
+                            meta,
+                            indexer::NoAuthBlockingGetter {},
+                            Some(web_data.clone()),
+                        )
+                    } else {
+                        None
+                    }
+                })
                 .chunks(20)
                 .map(|chunks| {
-                    let rand: i64 = rand::random();
-                    let time = Utc::now().timestamp();
-                    //println!("\n{} log start {}", rand, time);
-                    //println!("{:?}, {}", chunks, time);
-                    for data in chunks.iter() {
-                        let place = records_data.get(&data.0).unwrap().last().unwrap();
-                        if let indexer::GetUrlStatus::New(web_data) = &data.1 {
-                            let meta = indexer::UrlMeta {
-                                url: Some(place.url.clone()),
-                                title: place.title.clone(),
-                                bookmarked: Some(place.bookmarked),
-                                last_visit: place
-                                    .last_visit_date
-                                    .map(|num| Utc.timestamp(num / 1000000, 0)),
-                                access_count: Some(place.visit_count),
-                                pinned: None,
-                                tags_add: None,
-                                tags_remove: None,
-                                hidden: Some(0),
-                            };
-
-                            if let Some(doc) = indexer::url_doc(
-                                &place.url.clone(),
-                                &index,
-                                meta,
-                                indexer::NoAuthBlockingGetter {},
-                                Some(web_data.clone()),
-                            ) {
-                                let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
-                                index_writer_read.read().unwrap().add_document(doc);
-                            }
+                    let mut added = false;
+                    for data in chunks.into_iter() {
+                        if let Some(doc) = data {
+                            added = true;
+                            let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
+                            index_writer_read.write().unwrap().add_document(doc);
                         }
-                        // index
                     }
-                    //println!("\n{} log end {}", rand, time);
-                    //println!("done chunks {}", time);
-                    let mut index_writer_wlock = indexer::SEARCHINDEXWRITER.write().unwrap();
+                    if added {
+                        {
+                            let mut index_writer_wlock =
+                                indexer::SEARCHINDEXWRITER.write().unwrap();
 
-                    //println!("done {:?} {}", chunks, time);
-                    //println!("commit {}", time);
-                    index_writer_wlock.commit().expect("commit");
-
+                            index_writer_wlock.commit().expect("commit");
+                        }
+                        let hash_index_writer_read = indexer::HASHINDEXWRITER.clone();
+                        hash_index_writer_read.write().unwrap().commit().unwrap();
+                    } else {
+                    }
                     //println!("done commit {}", time);
                 })
                 .collect::<Vec<_>>();
 
-            println!("collect commit");
             let mut file = OpenOptions::new()
                 .truncate(true)
                 .write(true)
@@ -266,14 +267,11 @@ fn main() -> tantivy::Result<()> {
                 .open(&path_name)
                 .expect("cache file");
 
-            println!("cache file");
             file.write_all(format!("last_id = {}", date).as_bytes())
                 .expect("ff cache");
-
-            println!("write file");
         }
         _ => {
-            println!("bad");
+            println!("bad firefox place sql file");
         }
     };
 

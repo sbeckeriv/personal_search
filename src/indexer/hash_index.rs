@@ -53,7 +53,6 @@ pub fn add_hash(domain: &str, hash: u64) {
     let new_hash = format!("/{}", hash);
     let mut doc = if let Some(result) = top_docs.first() {
         let doc = searcher.doc(result.1).expect("doc");
-        // dont dup the facet
         for s in doc.get_all(index.schema().get_field("hashes").expect("f")) {
             if let tantivy::schema::Value::Facet(facet) = s {
                 if facet.to_path_string() == new_hash {
@@ -65,9 +64,8 @@ pub fn add_hash(domain: &str, hash: u64) {
             index.schema().get_field("domain").expect("domain field"),
             &domain_hash,
         );
-        dbg!(&frankenstein_isbn);
         index_writer_read
-            .read()
+            .write()
             .unwrap()
             .delete_term(frankenstein_isbn);
         doc
@@ -85,9 +83,5 @@ pub fn add_hash(domain: &str, hash: u64) {
         Facet::from(&new_hash),
     );
     println!("hash add");
-    index_writer_read.read().unwrap().add_document(doc);
-
-    let mut index_writer_wlock = super::HASHINDEXWRITER.write().unwrap();
-    index_writer_wlock.commit().unwrap();
-    println!("hash add commit");
+    index_writer_read.write().unwrap().add_document(doc);
 }
