@@ -101,7 +101,7 @@ fn records(place_file: &PathBuf, backfill: bool, last_id: Option<i64>) -> Vec<Mo
     );
 
     let mut stmt = conn.prepare("SELECT id, url, title, description, visit_count, hidden, last_visit_date FROM moz_places order by last_visit_date desc").expect("place prep");
-    let places_sql = stmt
+    let places = stmt
         .query_map(params![], |row| {
             // dont use wrapper object. we could call it right here.
             let id = row.get(0).unwrap();
@@ -118,7 +118,7 @@ fn records(place_file: &PathBuf, backfill: bool, last_id: Option<i64>) -> Vec<Mo
         })
         .expect("place sql");
 
-    places_sql
+    places
         .filter(|record| {
             let place = record.as_ref().unwrap();
             if place.visit_count > 0 && place.hidden == 0 {

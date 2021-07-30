@@ -197,7 +197,7 @@ fn search(query: String, limit: usize) -> Vec<SearchJson> {
     if let Ok(query) = query_parser.parse_query(&query) {
         let top_docs = searcher
             .search(&query, &TopDocs::with_limit(limit))
-            .expect("serach");
+            .expect("search");
         let schema = index.schema();
 
         top_docs
