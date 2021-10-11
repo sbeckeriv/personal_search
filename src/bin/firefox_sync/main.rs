@@ -1,10 +1,9 @@
 extern crate probabilistic_collections;
-use chrono::{TimeZone, Utc};
+use csv;
 use glob::glob;
 use personal_search::indexer;
-use rand;
-use rayon::prelude::*;
 use rusqlite::{params, Connection, Result};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -13,7 +12,7 @@ use std::io::prelude::*;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
-
+use std::time::{SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
 use toml::Value;
 
@@ -26,6 +25,9 @@ pub struct Opt {
     #[structopt(long = "db")]
     #[structopt(parse(from_os_str))]
     db: Option<PathBuf>,
+    #[structopt(long = "outfile")]
+    #[structopt(parse(from_os_str))]
+    outfile: Option<PathBuf>,
 }
 
 fn find_places_file() -> Option<PathBuf> {
@@ -56,7 +58,7 @@ fn find_places_file() -> Option<PathBuf> {
     });
     entries.pop()
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 struct MozPlaces {
     id: i64,
     url: String,
@@ -146,9 +148,8 @@ fn records(place_file: &PathBuf, backfill: bool, last_id: Option<i64>) -> Vec<Mo
         .collect::<Vec<_>>()
 }
 
-fn main() -> tantivy::Result<()> {
+fn main() -> Result<()> {
     let opt = Opt::from_args();
-    let _index = indexer::search_index().unwrap();
     let place = match opt.db.clone() {
         Some(arg_path) => Some(arg_path),
         None => find_places_file(),
@@ -197,68 +198,33 @@ fn main() -> tantivy::Result<()> {
                     .or_insert_with(Vec::new)
                     .push(record.clone());
             }
-            let index = indexer::search_index().unwrap();
-            dbg!(record_list.len());
-            let _results = &record_list
-                .par_iter()
-                //.iter()
-                .map(|record| {
-                    (
-                        record.url.clone(),
-                        indexer::get_url(&record.url, &index, indexer::NoAuthBlockingGetter {}),
-                    )
-                })
-                .map(|data| {
-                    let place = records_data.get(&data.0).unwrap().last().unwrap();
-                    if let indexer::GetUrlStatus::New(web_data) = &data.1 {
-                        let meta = indexer::UrlMeta {
-                            url: Some(place.url.clone()),
-                            title: place.title.clone(),
-                            bookmarked: Some(place.bookmarked),
-                            last_visit: place
-                                .last_visit_date
-                                .map(|num| Utc.timestamp(num / 1000000, 0)),
-                            access_count: Some(place.visit_count),
-                            pinned: None,
-                            tags_add: None,
-                            tags_remove: None,
-                            hidden: Some(0),
-                        };
-                        indexer::url_doc(
-                            &place.url.clone(),
-                            &index,
-                            meta,
-                            indexer::NoAuthBlockingGetter {},
-                            Some(web_data.clone()),
-                        )
-                    } else {
-                        None
-                    }
-                })
-                .chunks(20)
-                .map(|chunks| {
-                    let mut added = false;
-                    for data in chunks.into_iter() {
-                        if let Some(doc) = data {
-                            added = true;
-                            let index_writer_read = indexer::SEARCHINDEXWRITER.clone();
-                            index_writer_read.write().unwrap().add_document(doc);
-                        }
-                    }
-                    if added {
-                        {
-                            let mut index_writer_wlock =
-                                indexer::SEARCHINDEXWRITER.write().unwrap();
+            let out_path = if let Some(out_path) = opt.outfile.clone() {
+                out_path
+            } else {
+                let start = SystemTime::now();
+                let since_the_epoch = start
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards");
+                let path = Path::new(indexer::BASE_INDEX_DIR.as_str());
+                let path = path.join("csv_imports");
+                let path = path.join(format!("{:?}", since_the_epoch));
+                let path = path.join(".csv");
+                path.to_str().expect("cache").into()
+            };
 
-                            index_writer_wlock.commit().expect("commit");
-                        }
-                        let hash_index_writer_read = indexer::HASHINDEXWRITER.clone();
-                        hash_index_writer_read.write().unwrap().commit().unwrap();
-                    } else {
-                    }
-                    //println!("done commit {}", time);
-                })
-                .collect::<Vec<_>>();
+            let out_file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(&out_path)
+                .expect("out file location");
+
+            let mut wtr = csv::Writer::from_writer(out_file);
+            for record in record_list.iter() {
+                wtr.serialize(record)
+                    .expect(&format!("can not serialize record {:?}", record));
+            }
+            wtr.flush().expect("could not flush writer");
 
             let mut file = OpenOptions::new()
                 .truncate(true)

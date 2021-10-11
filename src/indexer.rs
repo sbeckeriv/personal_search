@@ -148,19 +148,23 @@ pub struct UrlMeta {
 
 pub fn url_skip(url: &str) -> bool {
     // lazy static this
-    let parsed = url::Url::parse(&url).expect("url pase");
-    if !parsed.scheme().starts_with("http") {
-        true
+    let parsed = url::Url::parse(&url);
+    if let Ok(parsed) = parsed {
+        if !parsed.scheme().starts_with("http") {
+            true
+        } else {
+            CACHEDCONFIG.ignore_domains.iter().any(|s| {
+                if s.ends_with('$') {
+                    let mut x = s.clone();
+                    x.pop();
+                    url.ends_with(&x)
+                } else {
+                    url.contains(s)
+                }
+            })
+        }
     } else {
-        CACHEDCONFIG.ignore_domains.iter().any(|s| {
-            if s.ends_with('$') {
-                let mut x = s.clone();
-                x.pop();
-                url.ends_with(&x)
-            } else {
-                url.contains(s)
-            }
-        })
+        true
     }
 }
 

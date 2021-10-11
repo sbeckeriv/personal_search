@@ -1,6 +1,3 @@
-#[cfg(feature = "ml")]
-use rust_bert::pipelines::summarization::{SummarizationConfig, SummarizationModel};
-
 use serde::{Deserialize, Serialize};
 
 use std::fs::OpenOptions;
